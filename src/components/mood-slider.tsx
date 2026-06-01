@@ -1,0 +1,54 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import { MOOD_LABELS } from "@/components/mood-dots";
+import type { Mood } from "@/lib/types";
+
+// Promień kółka (size-7 = 28px → 14px). Tor jest zwężony o promień z obu stron,
+// więc środek kółka przesuwa się dokładnie od 0% do 100% skali.
+const KNOB = 28;
+const KNOB_R = KNOB / 2;
+
+interface MoodSliderProps {
+  value: Mood;
+  onChange: (mood: Mood) => void;
+  className?: string;
+}
+
+export function MoodSlider({ value, onChange, className }: MoodSliderProps) {
+  const pct = (value - 1) / 4; // 0..1
+  // Pozycja środka kółka / koniec wypełnienia (w obrębie zwężonego toru).
+  const pos = `calc(${KNOB_R}px + ${pct} * (100% - ${KNOB}px))`;
+
+  return (
+    <div
+      className={cn(
+        "relative h-8 w-full max-w-xs select-none rounded-full border bg-secondary has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50",
+        className
+      )}
+    >
+      {/* Wypełnienie (lewa część toru). */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-foreground transition-[width] duration-150"
+        style={{ width: pos }}
+      />
+      {/* Kółko. */}
+      <div
+        className="pointer-events-none absolute top-1/2 size-7 rounded-full bg-background shadow transition-[left] duration-150"
+        style={{ left: pos, transform: "translate(-50%, -50%)" }}
+      />
+      {/* Natywny suwak — przezroczysty, obsługuje drag, klawiaturę i ARIA. */}
+      <input
+        type="range"
+        min={1}
+        max={5}
+        step={1}
+        value={value}
+        aria-label={`Nastrój — ${MOOD_LABELS[value]}`}
+        aria-valuetext={MOOD_LABELS[value]}
+        onChange={(e) => onChange(Number(e.target.value) as Mood)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  );
+}
