@@ -17,8 +17,10 @@ interface MoodSliderProps {
 
 export function MoodSlider({ value, onChange, className }: MoodSliderProps) {
   const pct = (value - 1) / 4; // 0..1
-  // Pozycja środka kółka / koniec wypełnienia (w obrębie zwężonego toru).
-  const pos = `calc(${KNOB_R}px + ${pct} * (100% - ${KNOB}px))`;
+  // Środek kółka (w obrębie zwężonego toru).
+  const knobLeft = `calc(${KNOB_R}px + ${pct} * (100% - ${KNOB}px))`;
+  // Wypełnienie sięga aż do PRAWEJ krawędzi kółka, więc kółko całe leży na tle.
+  const fillWidth = `calc(${KNOB}px + ${pct} * (100% - ${KNOB}px))`;
 
   return (
     <div
@@ -30,12 +32,12 @@ export function MoodSlider({ value, onChange, className }: MoodSliderProps) {
       {/* Wypełnienie (lewa część toru). */}
       <div
         className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-foreground transition-[width] duration-150"
-        style={{ width: pos }}
+        style={{ width: fillWidth }}
       />
       {/* Kółko. */}
       <div
         className="pointer-events-none absolute top-1/2 size-7 rounded-full bg-background shadow transition-[left] duration-150"
-        style={{ left: pos, transform: "translate(-50%, -50%)" }}
+        style={{ left: knobLeft, transform: "translate(-50%, -50%)" }}
       />
       {/* Natywny suwak — przezroczysty, obsługuje drag, klawiaturę i ARIA. */}
       <input
