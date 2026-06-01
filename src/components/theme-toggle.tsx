@@ -24,7 +24,7 @@ export function ThemeToggle() {
     >
       <span
         className={cn(
-          "absolute flex size-5 items-center justify-center rounded-full bg-background text-foreground shadow-sm transition-transform",
+          "absolute flex size-5 items-center justify-center rounded-full bg-background text-foreground shadow-md transition-transform",
           isDark ? "translate-x-6" : "translate-x-1"
         )}
       >
