@@ -37,11 +37,14 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="system"
           enableSystem
+          disableTransitionOnChange
         >
           <div className="flex min-h-dvh flex-col">
             <AppHeader />
-            {/* pb-28 zostawia miejsce na pływający dolny navbar. */}
-            <main className="mx-auto w-full max-w-2xl flex-1 px-6 pt-6 pb-28">
+            {/* Szerokość/wyściółkę ustalają poszczególne sekcje (np. dwupanelowy
+                układ /entries). pb-28 zostawia miejsce na pływający dolny navbar
+                na mobile; na desktopie navbar znika, więc redukujemy odstęp. */}
+            <main className="flex w-full flex-1 flex-col pb-28 lg:pb-8">
               {children}
             </main>
             <BottomNav />

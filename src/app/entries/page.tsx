@@ -1,36 +1,19 @@
-"use client";
+import { BookOpen } from "lucide-react";
 
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
-import { EntryCard } from "@/components/entry-card";
-import { useEntries } from "@/hooks/use-entries";
-import { useHydrated } from "@/hooks/use-hydrated";
-
-export default function EntriesPage() {
-  const entries = useEntries();
-  const ready = useHydrated();
-
+/**
+ * Prawy panel widoku dziennika, gdy żaden wpis nie jest wybrany. Na mobile ten
+ * ekran jest ukryty przez layout (widać samą listę); na desktopie to pusty stan
+ * obok stałej listy po lewej.
+ */
+export default function EntriesIndexPage() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Wpisy</h1>
-
-      {!ready ? null : entries.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-16 text-center">
-          <p className="text-muted-foreground">
-            Nie masz jeszcze żadnych wpisów.
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/new">Dodaj pierwszy wpis</Link>
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {entries.map((entry) => (
-            <EntryCard key={entry.id} entry={entry} />
-          ))}
-        </div>
-      )}
+    <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+      <div className="flex size-16 items-center justify-center rounded-full bg-accent">
+        <BookOpen className="size-7 text-muted-foreground" />
+      </div>
+      <p className="mt-4 text-sm text-muted-foreground">
+        Wybierz wpis z listy, aby zobaczyć szczegóły.
+      </p>
     </div>
   );
 }

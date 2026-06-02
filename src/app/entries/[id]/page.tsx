@@ -37,7 +37,7 @@ export default function EntryDetailPage() {
 
   if (!entry) {
     return (
-      <div className="space-y-4 text-center">
+      <div className="mx-auto w-full max-w-2xl space-y-4 text-center">
         <p className="text-muted-foreground">Nie znaleziono wpisu.</p>
         <Button asChild variant="outline">
           <Link href="/entries">Wróć do listy</Link>
@@ -47,7 +47,7 @@ export default function EntryDetailPage() {
   }
 
   return (
-    <article className="space-y-6">
+    <article className="w-full max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
@@ -69,6 +69,7 @@ export default function EntryDetailPage() {
           size="icon"
           aria-label="Wróć do listy"
           onClick={() => router.push("/entries")}
+          className="lg:hidden"
         >
           <ArrowLeft className="size-5" />
         </Button>
