@@ -1,6 +1,11 @@
 import type { Entry, EntryInput } from "@/lib/types";
+import { buildSeedEntries } from "@/lib/seed";
 
 const STORAGE_KEY = "prolog.entries";
+// Flaga „już zasiano" — żeby nie odtwarzać przykładowych wpisów po tym, jak
+// użytkownik świadomie usunie wszystkie wpisy. Sufiks wersji: po zmianie zestawu
+// seeda podbijamy go, by zasiać od nowa u osób, które mają pusty dziennik.
+const SEED_FLAG_KEY = "prolog.seeded.v2";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -75,6 +80,25 @@ function writeRaw(entries: Entry[]): void {
   if (!isBrowser()) return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   notify();
+}
+
+/**
+ * Jednorazowo zasiewa przykładowe wpisy, gdy dziennik jest pusty. Wywoływane
+ * po stronie klienta (np. z layoutu). Bezpieczne do wielokrotnego wywołania —
+ * po pierwszym razie ustawia flagę i nic więcej nie robi.
+ */
+export function seedIfEmpty(): void {
+  if (!isBrowser()) return;
+  try {
+    if (window.localStorage.getItem(SEED_FLAG_KEY)) return;
+    if (readRaw().length === 0) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildSeedEntries()));
+    }
+    window.localStorage.setItem(SEED_FLAG_KEY, "1");
+    notify();
+  } catch {
+    // Brak dostępu do localStorage — pomijamy zasianie.
+  }
 }
 
 // --- CRUD ----------------------------------------------------------------
