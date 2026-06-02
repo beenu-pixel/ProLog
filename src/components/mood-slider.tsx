@@ -20,8 +20,10 @@ export function MoodSlider({ value, onChange, className }: MoodSliderProps) {
   const pct = (value - 1) / 4; // 0..1
   // Środek kółka — z odstępem PAD od obu krawędzi toru.
   const knobLeft = `calc(${PAD + KNOB_R}px + ${pct} * (100% - ${2 * PAD + KNOB}px))`;
-  // Wypełnienie sięga do PRAWEJ krawędzi kółka, więc kółko całe leży na tle.
-  const fillWidth = `calc(${PAD + KNOB}px + ${pct} * (100% - ${2 * PAD + KNOB}px))`;
+  // Wypełnienie ma wysokość kółka i ten sam promień, zaczyna się PAD od lewej i
+  // kończy na prawej krawędzi kółka — dzięki temu kółko idealnie pokrywa się
+  // z zaokrągleniem wypełnienia (jak w przełączniku motywu).
+  const fillWidth = `calc(${KNOB}px + ${pct} * (100% - ${2 * PAD + KNOB}px))`;
 
   return (
     <div
@@ -30,10 +32,10 @@ export function MoodSlider({ value, onChange, className }: MoodSliderProps) {
         className
       )}
     >
-      {/* Wypełnienie (lewa część toru). */}
+      {/* Wypełnienie — wysokość i promień jak kółko, wcięte PAD od krawędzi toru. */}
       <div
-        className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-foreground transition-[width] duration-150"
-        style={{ width: fillWidth }}
+        className="pointer-events-none absolute top-1/2 h-5 -translate-y-1/2 rounded-full bg-foreground transition-[width] duration-150"
+        style={{ left: `${PAD}px`, width: fillWidth }}
       />
       {/* Kółko. */}
       <div
