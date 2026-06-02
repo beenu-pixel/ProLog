@@ -73,6 +73,22 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Płynny crossfade całej strony przy zmianie motywu (View Transitions API).
+   Animowany jest zrzut całej strony, a nie pojedyncze elementy, więc tekst
+   i ikony nie migoczą. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 350ms;
+  animation-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -80,15 +96,6 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  }
-  /* Płynne przejście kolorów przy zmianie motywu jasny/ciemny (350 ms).
-     Elementy z własnymi utility transition-* (np. przyciski) nadpisują tę regułę. */
-  *,
-  *::before,
-  *::after {
-    transition-property: background-color, border-color, color, fill, stroke;
-    transition-duration: 350ms;
-    transition-timing-function: ease;
   }
 }
 
