@@ -8,11 +8,17 @@ import { cn } from "@/lib/utils";
 
 export function BottomNav() {
   const pathname = usePathname();
+
+  // Na ekranach formularza (nowy / edycja wpisu) chowamy nawigację, żeby nie
+  // zasłaniała treści — powrót realizuje strzałka i „Anuluj" w samym formularzu.
+  const isForm = pathname === "/new" || pathname.endsWith("/edit");
+  if (isForm) return null;
+
   // Zakładka „Wpisy" jest aktywna na liście oraz na ekranach szczegółu/edycji wpisu.
   const entriesActive = pathname === "/" || pathname.startsWith("/entries");
 
   return (
-    <nav className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
+    <nav className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4 lg:hidden">
       {/* Pływająca „wyspa" nawigacji. */}
       <div className="relative h-16 w-full max-w-md rounded-full border bg-background/85 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70">
         {/* Dodawanie wpisu — na środku paska. */}
