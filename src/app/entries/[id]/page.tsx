@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { MoodDots, MOOD_LABELS } from "@/components/mood-dots";
 import { deleteEntry } from "@/lib/storage";
+import { playSound } from "@/lib/sound";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { formatDate } from "@/lib/format";
@@ -30,6 +31,7 @@ export default function EntryDetailPage() {
 
   const handleDelete = () => {
     deleteEntry(params.id);
+    playSound("entry-delete");
     router.push("/entries");
   };
 

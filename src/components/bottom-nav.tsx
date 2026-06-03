@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Plus, NotebookText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { playSound } from "@/lib/sound";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -25,6 +26,7 @@ export function BottomNav() {
         <Link
           href="/new"
           aria-label="Dodaj wpis"
+          onClick={() => playSound("entry-new")}
           className="absolute left-1/2 top-1/2 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-95"
         >
           <Plus className="size-6" />

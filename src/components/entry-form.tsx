@@ -10,6 +10,7 @@ import { MOOD_LABELS } from "@/components/mood-dots";
 import { MoodSlider } from "@/components/mood-slider";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { addEntry, updateEntry } from "@/lib/storage";
+import { playSound } from "@/lib/sound";
 import type { Entry, Mood } from "@/lib/types";
 
 interface EntryFormProps {
@@ -37,9 +38,11 @@ export function EntryForm({ entry }: EntryFormProps) {
 
     if (isEdit && entry) {
       updateEntry(entry.id, input);
+      playSound("entry-save");
       router.push(`/entries/${entry.id}`);
     } else {
       const created = addEntry(input);
+      playSound("entry-save");
       router.push(`/entries/${created.id}`);
     }
   };

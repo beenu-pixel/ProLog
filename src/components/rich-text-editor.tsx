@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Bold, Italic, List, ListOrdered, Mic } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { playSound } from "@/lib/sound";
 
 interface RichTextEditorProps {
   value: string;
@@ -129,11 +130,13 @@ function DictateButton({ editor }: { editor: Editor }) {
     if (listening) {
       recognition.stop();
       setListening(false);
+      playSound("dictate-stop");
       return;
     }
     try {
       recognition.start();
       setListening(true);
+      playSound("dictate-start");
     } catch {
       // start() rzuca, gdy rozpoznawanie już trwa — pomijamy.
     }
