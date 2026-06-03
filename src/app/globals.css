@@ -82,9 +82,27 @@
   animation-timing-function: ease;
 }
 
+/* Kciuk przełącznika motywu (theme-thumb) jest osobną grupą View Transitions:
+   nie miesza się z crossfadem całej strony. Grupa płynnie przesuwa go (slide),
+   a kolor i ikonę (księżyc↔słońce) przechodzi crossfadem View Transitions. */
+::view-transition-group(theme-thumb) {
+  animation-duration: 350ms;
+  animation-timing-function: ease;
+}
+::view-transition-old(theme-thumb),
+::view-transition-new(theme-thumb) {
+  /* Płynny crossfade kciuka (księżyc↔słońce, kolor) na czas slide'u grupy.
+     Całą animację robi View Transitions — bez nakładających się przejść CSS na
+     samym elemencie, które wcześniej powodowały miganie. */
+  animation-duration: 350ms;
+  animation-timing-function: ease;
+  mix-blend-mode: normal;
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
-  ::view-transition-new(root) {
+  ::view-transition-new(root),
+  ::view-transition-group(theme-thumb) {
     animation: none;
   }
 }
