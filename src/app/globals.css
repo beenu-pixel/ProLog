@@ -117,6 +117,54 @@
   }
 }
 
+/* Własny (animowany) pasek przewijania dla sekcji listy. Natywny pasek chowamy,
+   bo ::-webkit-scrollbar w Chromium nie animuje przejść. Zamiast niego nakładamy
+   element `.scroll-thumb`, którego pozycję i wysokość liczy JS, a wygląd/animację
+   steruje CSS. Pojawia się tylko, gdy kursor jest nad sekcją (klasa
+   `.show-scroll` na wrapperze). */
+.hide-native-scroll {
+  scrollbar-width: none; /* Firefox */
+}
+.hide-native-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scroll-thumb {
+  position: absolute;
+  /* Wyśrodkowany w odstępie między tekstem wpisów a prawą krawędzią panelu
+     (aside ma pr-8 + border-r) — odsunięty od wpisów. */
+  right: -8px;
+  top: 0;
+  width: 3px; /* startowa „pastylka" */
+  height: 0; /* wysokość liczona w JS wg proporcji przewijania */
+  border-radius: 9999px;
+  /* Jasność zmniejszona o połowę — mieszamy kolor z przezroczystością 50%. */
+  background-color: color-mix(in oklch, var(--muted-foreground) 50%, transparent);
+  opacity: 0;
+  transform: translateX(12px); /* schowany za prawą krawędzią */
+  transform-origin: right center;
+  /* Wjazd z prawej (opacity + translateX), a szerokość rozszerza się PO wjeździe
+     (delay 180 ms) — efekt „pastylka wjeżdża i rozszerza się na pełną szerokość". */
+  transition: opacity 160ms ease, transform 220ms ease, width 160ms ease 180ms;
+  pointer-events: none;
+}
+.custom-scroll-wrap.show-scroll .scroll-thumb {
+  opacity: 1;
+  transform: translateX(0);
+  width: 7px; /* pełna szerokość */
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-thumb {
+    transition: opacity 160ms ease;
+    transform: none;
+    width: 7px;
+  }
+  .custom-scroll-wrap.show-scroll .scroll-thumb {
+    transform: none;
+  }
+}
+
 /* Treść wpisu — wspólne style dla edytora TipTap i widoku szczegółu. */
 .prose-content,
 .prose-editor {
