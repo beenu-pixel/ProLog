@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { MoodDots, MOOD_LABELS } from "@/components/mood-dots";
+import { MetricValue } from "@/components/metric-value";
+import { METRICS } from "@/lib/metrics";
 import { deleteEntry } from "@/lib/storage";
 import { playSound } from "@/lib/sound";
 import { useEntries } from "@/hooks/use-entries";
@@ -58,12 +59,6 @@ export default function EntryDetailPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {entry.title}
           </h1>
-          <div className="flex items-center gap-2">
-            <MoodDots value={entry.mood} size="sm" />
-            <span className="text-xs text-muted-foreground">
-              {MOOD_LABELS[entry.mood]}
-            </span>
-          </div>
         </div>
 
         <Button
@@ -76,6 +71,20 @@ export default function EntryDetailPage() {
           <ArrowLeft className="size-5" />
         </Button>
       </div>
+
+      {METRICS.some((metric) => typeof entry[metric.key] === "number") && (
+        <div className="space-y-1 rounded-xl border p-4">
+          {METRICS.map((metric) =>
+            typeof entry[metric.key] === "number" ? (
+              <MetricValue
+                key={metric.key}
+                metricKey={metric.key}
+                value={entry[metric.key]}
+              />
+            ) : null
+          )}
+        </div>
+      )}
 
       {entry.content ? (
         <div

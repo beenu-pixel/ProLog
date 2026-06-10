@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
+import { ComposerBar } from "@/components/composer-bar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,12 +43,14 @@ export default function RootLayout({
           <div className="flex min-h-dvh flex-col">
             <AppHeader />
             {/* Szerokość/wyściółkę ustalają poszczególne sekcje (np. dwupanelowy
-                układ /entries). pb-28 zostawia miejsce na pływający dolny navbar
-                na mobile; na desktopie navbar znika, więc redukujemy odstęp. */}
-            <main className="flex w-full flex-1 flex-col pb-28 lg:pb-8">
+                układ /entries). Dół rezerwuje miejsce na dwa pływające paski:
+                kompozytor (globalny) nad dolnym navbarem na mobile; na desktopie
+                navbar znika, ale kompozytor zostaje, więc i tak trzymamy odstęp. */}
+            <main className="flex w-full flex-1 flex-col pb-44 lg:pb-28">
               {children}
             </main>
             <BottomNav />
+            <ComposerBar />
           </div>
         </ThemeProvider>
       </body>

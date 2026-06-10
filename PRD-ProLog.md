@@ -149,8 +149,10 @@ na środku służący do dodawania nowego wpisu.
 > rozbudować w kolejnych etapach.
 
 ### Zachowanie
-- Dolny navbar jest widoczny na **wszystkich** ekranach: lista wpisów, dodawanie wpisu
-  oraz szczegół wpisu.
+- Dolny navbar jest widoczny na ekranach **przeglądania**: lista wpisów oraz szczegół wpisu.
+- Na ekranie **formularza** (nowy wpis `/new` oraz edycja `/entries/:id/edit`) navbar jest
+  **celowo ukrywany**, aby nie zasłaniał treści i nie rozpraszał podczas pisania. Powrót
+  z formularza realizują: **strzałka (←)** oraz przycisk **„Anuluj"** w samym formularzu.
 - Aktywna zakładka jest wizualnie wyróżniona (pogrubienie / wypełniona ikona).
 - **Ekran 3 (szczegół wpisu)** otwiera się po kliknięciu wpisu na liście; navbar pozostaje
   widoczny, a powrót do listy realizuje **strzałka (←) w prawym górnym rogu**.

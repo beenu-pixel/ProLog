@@ -1,4 +1,4 @@
-import type { Entry, Mood } from "@/lib/types";
+import type { Entry, Scale } from "@/lib/types";
 
 interface SeedSpec {
   /** Ile dni wstecz względem dziś. */
@@ -6,12 +6,19 @@ interface SeedSpec {
   title: string;
   /** Akapity treści (zostaną złożone w HTML, tak jak zapisuje TipTap). */
   paragraphs: string[];
-  mood: Mood;
+  mood: Scale;
+  sleep: Scale;
+  energy: Scale;
+  productivity: Scale;
+  /** Poziom stresu (5 = najsilniejszy). */
+  stress: Scale;
 }
 
 // Przykładowe wpisy wypełniające ostatnie dwa tygodnie (po jednym na każdy z 14
 // dni wstecz), gdy dziennik jest pusty. „Dziś" (daysAgo 0) zostaje bez wpisu —
-// żeby użytkownik mógł dodać własny na dzisiaj.
+// żeby użytkownik mógł dodać własny na dzisiaj. Wartości metryk są skorelowane
+// (lepszy sen/energia → lepsze samopoczucie, niższy stres), żeby statystyki
+// wyglądały naturalnie.
 const SEED: SeedSpec[] = [
   {
     daysAgo: 1,
@@ -21,6 +28,10 @@ const SEED: SeedSpec[] = [
       "Wieczorem trochę czytania i wcześniejsze pójście spać.",
     ],
     mood: 3,
+    sleep: 3,
+    energy: 3,
+    productivity: 4,
+    stress: 3,
   },
   {
     daysAgo: 2,
@@ -29,6 +40,10 @@ const SEED: SeedSpec[] = [
       "Cichy dzień bez niespodzianek. W końcu nadrobiłem zaległe maile.",
     ],
     mood: 4,
+    sleep: 4,
+    energy: 4,
+    productivity: 3,
+    stress: 2,
   },
   {
     daysAgo: 3,
@@ -37,6 +52,10 @@ const SEED: SeedSpec[] = [
       "Długi spacer po pracy zrobił swoje. Najlepsze decyzje przychodzą w ruchu.",
     ],
     mood: 4,
+    sleep: 4,
+    energy: 4,
+    productivity: 3,
+    stress: 2,
   },
   {
     daysAgo: 4,
@@ -46,6 +65,10 @@ const SEED: SeedSpec[] = [
       "Pomogła krótka rozmowa z bliską osobą — warto prosić o wsparcie.",
     ],
     mood: 3,
+    sleep: 3,
+    energy: 3,
+    productivity: 3,
+    stress: 3,
   },
   {
     daysAgo: 5,
@@ -55,6 +78,10 @@ const SEED: SeedSpec[] = [
       "Zapisuję sobie, że napięcie najbardziej rosło przy nieplanowanych spotkaniach.",
     ],
     mood: 2,
+    sleep: 2,
+    energy: 2,
+    productivity: 2,
+    stress: 4,
   },
   {
     daysAgo: 6,
@@ -63,6 +90,10 @@ const SEED: SeedSpec[] = [
       "Skończyłem zadanie, które odkładałem od tygodni. Ulga i trochę dumy.",
     ],
     mood: 5,
+    sleep: 4,
+    energy: 5,
+    productivity: 5,
+    stress: 1,
   },
   {
     daysAgo: 7,
@@ -72,6 +103,10 @@ const SEED: SeedSpec[] = [
       "Wieczorny spacer dodał świeżości — chcę to powtarzać częściej.",
     ],
     mood: 5,
+    sleep: 5,
+    energy: 5,
+    productivity: 4,
+    stress: 1,
   },
   {
     daysAgo: 8,
@@ -81,6 +116,10 @@ const SEED: SeedSpec[] = [
       "Poranna kawa, lista zadań, jedna rzecz naraz — działa najlepiej.",
     ],
     mood: 4,
+    sleep: 4,
+    energy: 4,
+    productivity: 4,
+    stress: 2,
   },
   {
     daysAgo: 9,
@@ -89,6 +128,10 @@ const SEED: SeedSpec[] = [
       "Długi dzień, sporo zrobione. Zmęczenie, ale i satysfakcja z postępu.",
     ],
     mood: 3,
+    sleep: 2,
+    energy: 3,
+    productivity: 4,
+    stress: 3,
   },
   {
     daysAgo: 10,
@@ -98,6 +141,10 @@ const SEED: SeedSpec[] = [
       "Notuję to jako mały eksperyment, który chcę powtórzyć.",
     ],
     mood: 4,
+    sleep: 4,
+    energy: 4,
+    productivity: 3,
+    stress: 2,
   },
   {
     daysAgo: 11,
@@ -106,6 +153,10 @@ const SEED: SeedSpec[] = [
       "Niełatwa rozmowa, ale potrzebna. Czuję ulgę, że temat został wyjaśniony.",
     ],
     mood: 2,
+    sleep: 3,
+    energy: 2,
+    productivity: 2,
+    stress: 4,
   },
   {
     daysAgo: 12,
@@ -114,6 +165,10 @@ const SEED: SeedSpec[] = [
       "Wróciłem do biegania. Ciężko, ale po wszystkim mnóstwo dobrej energii.",
     ],
     mood: 5,
+    sleep: 4,
+    energy: 5,
+    productivity: 4,
+    stress: 1,
   },
   {
     daysAgo: 13,
@@ -123,6 +178,10 @@ const SEED: SeedSpec[] = [
       "Czyste biurko, czysta głowa.",
     ],
     mood: 4,
+    sleep: 4,
+    energy: 3,
+    productivity: 5,
+    stress: 2,
   },
   {
     daysAgo: 14,
@@ -131,8 +190,23 @@ const SEED: SeedSpec[] = [
       "Spokojny wieczór: rozdział dobrej książki i wcześniejszy sen.",
     ],
     mood: 4,
+    sleep: 5,
+    energy: 4,
+    productivity: 3,
+    stress: 2,
   },
 ];
+
+/** Prefiks id wpisów-seedów (wypełniacz demonstracyjny UI). */
+export const SEED_ID_PREFIX = "seed-";
+
+/**
+ * Czy wpis to seed (przykładowy wypełniacz). Seedy mają id `seed-NN`. Używane,
+ * by ukryć je przed zalogowanym użytkownikiem i nie wysyłać ich do bazy.
+ */
+export function isSeedEntry(entry: Pick<Entry, "id">): boolean {
+  return entry.id.startsWith(SEED_ID_PREFIX);
+}
 
 /** Składa akapity w HTML zgodny z formatem treści edytora. */
 function toHtml(paragraphs: string[]): string {
@@ -154,6 +228,10 @@ export function buildSeedEntries(): Entry[] {
     title: spec.title,
     content: toHtml(spec.paragraphs),
     mood: spec.mood,
+    sleep: spec.sleep,
+    energy: spec.energy,
+    productivity: spec.productivity,
+    stress: spec.stress,
     createdAt: daysAgoIso(spec.daysAgo),
   }));
 }

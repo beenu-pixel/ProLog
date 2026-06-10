@@ -11,6 +11,8 @@
 // Każde nazwane zdarzenie to „oznaczone miejsce", w którym ma zagrać efekt.
 // Aby dodać/podmienić dźwięk, wrzuć plik `public/sounds/<name>.mp3`.
 
+import { isSoundEnabled } from "@/lib/settings";
+
 export type SoundName =
   | "theme-toggle" // przełączenie trybu jasny/ciemny
   | "entry-new" // rozpoczęcie tworzenia wpisu (przycisk „+")
@@ -106,6 +108,8 @@ function playBuffer(ctx: AudioContext, name: SoundName, buffer: AudioBuffer) {
  * dekoduje plik (z już pobranych bajtów), kolejne grają natychmiast.
  */
 export function playSound(name: SoundName): void {
+  if (!isSoundEnabled()) return;
+
   const ctx = getAudioContext();
   if (!ctx) return;
 

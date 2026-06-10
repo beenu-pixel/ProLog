@@ -10,12 +10,15 @@ describe("buildSeedEntries", () => {
   });
 
   it("każdy wpis ma poprawny kształt", () => {
+    const metricKeys = ["mood", "sleep", "energy", "productivity", "stress"] as const;
     for (const entry of entries) {
       expect(entry.id).toMatch(/^seed-\d{2}$/);
       expect(entry.title.trim().length).toBeGreaterThan(0);
       expect(entry.content).toContain("<p>");
-      expect(entry.mood).toBeGreaterThanOrEqual(1);
-      expect(entry.mood).toBeLessThanOrEqual(5);
+      for (const key of metricKeys) {
+        expect(entry[key]).toBeGreaterThanOrEqual(1);
+        expect(entry[key]).toBeLessThanOrEqual(5);
+      }
       expect(Number.isNaN(new Date(entry.createdAt).getTime())).toBe(false);
     }
   });

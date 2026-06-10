@@ -1,17 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { MOOD_LABELS } from "@/lib/metrics";
 import type { Mood } from "@/lib/types";
 
 const MOODS: Mood[] = [1, 2, 3, 4, 5];
-
-const MOOD_LABELS: Record<Mood, string> = {
-  1: "Bardzo źle",
-  2: "Słabo",
-  3: "Neutralnie",
-  4: "Dobrze",
-  5: "Bardzo dobrze",
-};
 
 interface MoodDotsProps {
   value: Mood;
@@ -19,14 +12,17 @@ interface MoodDotsProps {
   onChange?: (mood: Mood) => void;
   className?: string;
   size?: "sm" | "md";
+  /** Etykieta a11y grupy (domyślnie „Nastrój"). */
+  label?: string;
 }
 
-/** Skala nastroju 1–5 jako monochromatyczne kropki (styl Stoic). */
+/** Skala 1–5 jako monochromatyczne kropki (styl Stoic). */
 export function MoodDots({
   value,
   onChange,
   className,
   size = "md",
+  label = "Nastrój",
 }: MoodDotsProps) {
   const interactive = typeof onChange === "function";
   const dotSize = size === "sm" ? "size-2.5" : "size-3.5";
@@ -35,7 +31,7 @@ export function MoodDots({
     <div
       className={cn("flex items-center gap-1.5", className)}
       role={interactive ? "radiogroup" : undefined}
-      aria-label="Nastrój"
+      aria-label={label}
     >
       {MOODS.map((mood) => {
         const filled = mood <= value;

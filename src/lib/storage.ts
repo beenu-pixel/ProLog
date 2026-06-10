@@ -1,11 +1,12 @@
 import type { Entry, EntryInput } from "@/lib/types";
 import { buildSeedEntries } from "@/lib/seed";
+import { pushEntry, deleteRemote } from "@/lib/sync";
 
 const STORAGE_KEY = "prolog.entries";
 // Flaga „już zasiano" — żeby nie odtwarzać przykładowych wpisów po tym, jak
 // użytkownik świadomie usunie wszystkie wpisy. Sufiks wersji: po zmianie zestawu
 // seeda podbijamy go, by zasiać od nowa u osób, które mają pusty dziennik.
-const SEED_FLAG_KEY = "prolog.seeded.v2";
+const SEED_FLAG_KEY = "prolog.seeded.v3";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -118,12 +119,11 @@ export function addEntry(input: EntryInput): Entry {
       isBrowser() && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    title: input.title,
-    content: input.content,
-    mood: input.mood,
+    ...input,
     createdAt: new Date().toISOString(),
   };
   writeRaw([entry, ...readRaw()]);
+  pushEntry(entry);
   return entry;
 }
 
@@ -139,11 +139,13 @@ export function updateEntry(id: string, input: EntryInput): Entry | undefined {
   };
   entries[index] = updated;
   writeRaw(entries);
+  pushEntry(updated);
   return updated;
 }
 
 export function deleteEntry(id: string): void {
   writeRaw(readRaw().filter((entry) => entry.id !== id));
+  deleteRemote(id);
 }
 
 export { STORAGE_KEY };

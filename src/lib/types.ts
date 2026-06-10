@@ -1,4 +1,11 @@
-export type Mood = 1 | 2 | 3 | 4 | 5;
+/** Skala 1–5 używana przez wszystkie metryki dnia. */
+export type Scale = 1 | 2 | 3 | 4 | 5;
+
+/** Alias zachowany dla istniejących importów (samopoczucie/nastrój). */
+export type Mood = Scale;
+
+/** Klucze metryk zapisywanych z wpisem (kolejność = kolejność kroków kreatora). */
+export type MetricKey = "sleep" | "energy" | "mood" | "productivity" | "stress";
 
 /** Pojedynczy wpis dziennika (Etap 1 — przechowywany w localStorage). */
 export interface Entry {
@@ -7,13 +14,21 @@ export interface Entry {
   title: string;
   /** Treść z edytora TipTap, zapisywana jako HTML string. */
   content: string;
-  /** Nastrój w skali 1–5 (prezentowany jako monochromatyczne kropki). */
-  mood: Mood;
+  /** Samopoczucie/nastrój (1–5). Opcjonalne — starsze wpisy mogą go nie mieć. */
+  mood?: Scale;
+  /** Jakość snu (1–5). */
+  sleep?: Scale;
+  /** Energia (1–5). */
+  energy?: Scale;
+  /** Produktywność (1–5). */
+  productivity?: Scale;
+  /** Poziom stresu (1–5, gdzie 5 = najsilniejszy stres). */
+  stress?: Scale;
   /** Data utworzenia, ISO 8601, ustawiana automatycznie. */
   createdAt: string;
   /** Data ostatniej edycji, ISO 8601 (opcjonalna). */
   updatedAt?: string;
 }
 
-/** Dane wejściowe formularza — bez pól nadawanych automatycznie. */
-export type EntryInput = Pick<Entry, "title" | "content" | "mood">;
+/** Dane wejściowe formularza/kreatora — bez pól nadawanych automatycznie. */
+export type EntryInput = Pick<Entry, "title" | "content" | MetricKey>;

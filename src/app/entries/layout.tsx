@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { EntryList } from "@/components/entry-list";
+import { MobileDayView } from "@/components/mobile-day-view";
 import { seedIfEmpty } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -28,15 +29,22 @@ export default function EntriesLayout({
 
   return (
     <div className="flex w-full flex-1 lg:gap-10">
+      {/* Desktop: stała lista (master). Na mobile listę zastępuje widok dnia. */}
       <aside
         className={cn(
-          "w-full px-6 py-6 lg:w-[340px] lg:shrink-0 lg:border-r lg:py-6 lg:pl-8 lg:pr-8",
-          "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.5rem)]",
-          isDetail ? "hidden lg:block" : "block"
+          "hidden lg:block lg:w-[340px] lg:shrink-0 lg:border-r lg:py-6 lg:pl-8 lg:pr-8",
+          "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.5rem)]"
         )}
       >
         <EntryList />
       </aside>
+
+      {/* Mobile: widok dnia (pasek dni + treść) na bazowej trasie /entries. */}
+      {!isDetail && (
+        <div className="flex w-full flex-1 flex-col px-6 py-6 lg:hidden">
+          <MobileDayView />
+        </div>
+      )}
 
       <section
         className={cn(
