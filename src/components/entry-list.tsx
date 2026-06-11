@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { CustomScroll } from "@/components/custom-scroll";
 import { EntryListItem } from "@/components/entry-list-item";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -22,8 +23,6 @@ export function EntryList() {
   const ready = useHydrated();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const thumbRef = useRef<HTMLDivElement>(null);
 
   // Aktywny wpis = /entries/<id> (także w trybie edycji /entries/<id>/edit).
   const activeId = pathname.startsWith("/entries/")
@@ -37,39 +36,6 @@ export function EntryList() {
         : entries,
     [entries, query]
   );
-
-  // Pozycja i wysokość własnego thumba liczone z proporcji przewijania.
-  const updateThumb = useCallback(() => {
-    const sc = scrollRef.current;
-    const th = thumbRef.current;
-    if (!sc || !th) return;
-    const { scrollTop, scrollHeight, clientHeight } = sc;
-    if (scrollHeight <= clientHeight + 1) {
-      th.style.height = "0px"; // brak przewijania = brak thumba
-      return;
-    }
-    const thumbH = Math.max(24, (clientHeight / scrollHeight) * clientHeight);
-    const maxTop = clientHeight - thumbH;
-    const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop;
-    th.style.height = `${thumbH}px`;
-    th.style.top = `${top}px`;
-  }, []);
-
-  // Aktualizacja przy zmianie rozmiaru panelu i listy (filtr/dodanie/usunięcie).
-  useEffect(() => {
-    updateThumb();
-    const sc = scrollRef.current;
-    if (!sc) return;
-    const ro = new ResizeObserver(updateThumb);
-    ro.observe(sc);
-    const child = sc.firstElementChild;
-    if (child) ro.observe(child);
-    window.addEventListener("resize", updateThumb);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", updateThumb);
-    };
-  }, [updateThumb, filtered, ready]);
 
   return (
     <div className="flex h-full flex-col">
@@ -99,38 +65,30 @@ export function EntryList() {
         </div>
       </div>
 
-      <div
-        className="custom-scroll-wrap relative -mx-3 min-h-0 flex-1"
-        onMouseEnter={(e) => e.currentTarget.classList.add("show-scroll")}
-        onMouseLeave={(e) => e.currentTarget.classList.remove("show-scroll")}
+      <CustomScroll
+        className="-mx-3 min-h-0 flex-1"
+        contentClassName="h-full px-3 pt-2"
       >
-        <div
-          ref={scrollRef}
-          onScroll={updateThumb}
-          className="hide-native-scroll absolute inset-0 overflow-y-auto px-3 pt-2"
-        >
-          {!ready ? null : entries.length === 0 ? (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Nie masz jeszcze żadnych wpisów.
-            </p>
-          ) : filtered.length === 0 ? (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Brak wpisów pasujących do „{query.trim()}”.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {filtered.map((entry) => (
-                <EntryListItem
-                  key={entry.id}
-                  entry={entry}
-                  active={entry.id === activeId}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-        <div ref={thumbRef} className="scroll-thumb" aria-hidden />
-      </div>
+        {!ready ? null : entries.length === 0 ? (
+          <p className="px-3 py-12 text-center text-sm text-muted-foreground">
+            Nie masz jeszcze żadnych wpisów.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="px-3 py-12 text-center text-sm text-muted-foreground">
+            Brak wpisów pasujących do „{query.trim()}”.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {filtered.map((entry) => (
+              <EntryListItem
+                key={entry.id}
+                entry={entry}
+                active={entry.id === activeId}
+              />
+            ))}
+          </ul>
+        )}
+      </CustomScroll>
     </div>
   );
 }

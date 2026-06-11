@@ -102,6 +102,35 @@ export function seedIfEmpty(): void {
   }
 }
 
+/**
+ * Wciąga wpisy z chmury do localStorage (po zalogowaniu). Łączy po `id`:
+ * gdy wpis istnieje lokalnie, wygrywa nowsza wersja (po `updatedAt`/`createdAt`),
+ * w razie remisu — wersja z bazy. Wpisy lokalne nieobecne w chmurze zostają
+ * nietknięte. Powiadamia subskrybentów tylko, gdy faktycznie coś się zmieniło.
+ */
+export function mergeRemoteEntries(remote: Entry[]): void {
+  if (!isBrowser() || remote.length === 0) return;
+  const local = readRaw();
+  const byId = new Map(local.map((entry) => [entry.id, entry]));
+
+  const stamp = (entry: Entry): number =>
+    new Date(entry.updatedAt ?? entry.createdAt).getTime();
+
+  let changed = false;
+  for (const incoming of remote) {
+    const existing = byId.get(incoming.id);
+    if (!existing) {
+      byId.set(incoming.id, incoming);
+      changed = true;
+    } else if (stamp(incoming) >= stamp(existing)) {
+      byId.set(incoming.id, incoming);
+      changed = true;
+    }
+  }
+
+  if (changed) writeRaw([...byId.values()]);
+}
+
 // --- CRUD ----------------------------------------------------------------
 
 /** Wszystkie wpisy, najnowsze na górze (odczyt imperatywny). */

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import { supabase, isConfigured } from "@/lib/supabase";
-import { getEntries } from "@/lib/storage";
-import { pushAll } from "@/lib/sync";
+import { getEntries, mergeRemoteEntries } from "@/lib/storage";
+import { pushAll, pullAll } from "@/lib/sync";
 
 // --- Współdzielony store sesji --------------------------------------------
 // Pojedyncza subskrypcja `onAuthStateChange` dla całej aplikacji (useSession
@@ -32,14 +32,30 @@ function initAuth(): void {
   supabase.auth.onAuthStateChange((event, next) => {
     currentSession = next;
     emitSession();
-    if (event === "SIGNED_IN") pushAll(getEntries());
+    if (event === "SIGNED_IN") void syncOnSignIn();
   });
 }
 
 /**
+ * Dwukierunkowa synchronizacja przy logowaniu: najpierw wciągamy wpisy z chmury
+ * do localStorage (`pullAll` → `mergeRemoteEntries`), potem wypychamy stan
+ * lokalny z powrotem (`pushAll`), by baza dogoniła ewentualne wpisy offline.
+ * Best-effort — błąd sieci nie może wywrócić logowania.
+ */
+async function syncOnSignIn(): Promise<void> {
+  try {
+    mergeRemoteEntries(await pullAll());
+  } catch {
+    // pull/merge to najlepszy wysiłek — w razie błędu zostaje sam push poniżej
+  }
+  pushAll(getEntries());
+}
+
+/**
  * Reaktywna sesja Supabase. Zwraca `null` gdy wylogowany lub brak konfiguracji.
- * Po zalogowaniu (`SIGNED_IN`) jednorazowo wypycha lokalne wpisy do bazy
- * (z pominięciem seedów), by chmura dogoniła stan z localStorage.
+ * Po zalogowaniu (`SIGNED_IN`) jednorazowo synchronizuje dwukierunkowo: wciąga
+ * wpisy z chmury do localStorage i wypycha stan lokalny z powrotem (z pominięciem
+ * seedów), by oba źródła się zgadzały.
  */
 export function useSession(): Session | null {
   const [session, setSession] = useState<Session | null>(currentSession);

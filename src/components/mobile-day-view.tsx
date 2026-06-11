@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { DayStrip } from "@/components/day-strip";
 import { MetricValue } from "@/components/metric-value";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { setOpenDay } from "@/lib/active-context";
 import { METRICS } from "@/lib/metrics";
 import { groupByDay } from "@/lib/stats";
 import { addDays, dayKey, formatDate, formatTime } from "@/lib/format";
@@ -41,6 +42,11 @@ export function MobileDayView() {
 
   const selectedKey = dayKey(selected);
   const dayEntries = entriesByDay.get(selectedKey) ?? [];
+
+  // Udostępnia zaznaczony dzień globalnie, by terapeuta wiedział, na co patrzymy.
+  useEffect(() => {
+    setOpenDay(selectedKey);
+  }, [selectedKey]);
 
   return (
     <div className="flex w-full flex-1 flex-col">

@@ -9,6 +9,36 @@ import type { Entry } from "@/lib/types";
  * nie rzucają wyjątkiem. Gdy brak konfiguracji lub sesji, są no-opem.
  */
 
+/** Surowy wiersz tabeli `public.entries` (snake_case, metryki mogą być null). */
+interface EntryRow {
+  id: string;
+  title: string;
+  content: string;
+  mood: number | null;
+  sleep: number | null;
+  energy: number | null;
+  productivity: number | null;
+  stress: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** Mapuje wiersz bazy na `Entry` (null → undefined, snake_case → camelCase). */
+function fromRow(row: EntryRow): Entry {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    mood: row.mood ?? undefined,
+    sleep: row.sleep ?? undefined,
+    energy: row.energy ?? undefined,
+    productivity: row.productivity ?? undefined,
+    stress: row.stress ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? undefined,
+  } as Entry;
+}
+
 /** Wiersz tabeli `public.entries` (snake_case + user_id z sesji). */
 function toRow(entry: Entry, userId: string) {
   return {
@@ -57,6 +87,26 @@ export function deleteRemote(id: string): void {
       // jw. — usunięcie lokalne już się powiodło.
     }
   })();
+}
+
+/**
+ * Pobiera wszystkie wpisy zalogowanego użytkownika z bazy. Best-effort: przy
+ * braku sesji/konfiguracji lub błędzie sieci zwraca pustą listę (nigdy nie
+ * rzuca). Używane przy logowaniu, by localStorage dogonił stan z chmury.
+ */
+export async function pullAll(): Promise<Entry[]> {
+  try {
+    const userId = await currentUserId();
+    if (!userId) return [];
+    const { data, error } = await supabase!
+      .from("entries")
+      .select("*")
+      .eq("user_id", userId);
+    if (error || !data) return [];
+    return (data as EntryRow[]).map(fromRow);
+  } catch {
+    return [];
+  }
 }
 
 /**

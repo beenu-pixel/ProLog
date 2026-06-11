@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
@@ -19,9 +20,10 @@ import { MetricValue } from "@/components/metric-value";
 import { METRICS } from "@/lib/metrics";
 import { deleteEntry } from "@/lib/storage";
 import { playSound } from "@/lib/sound";
+import { setOpenEntry } from "@/lib/active-context";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
-import { formatDate } from "@/lib/format";
+import { dayKey, formatDate } from "@/lib/format";
 
 export default function EntryDetailPage() {
   const params = useParams<{ id: string }>();
@@ -29,6 +31,14 @@ export default function EntryDetailPage() {
   const entries = useEntries();
   const ready = useHydrated();
   const entry = entries.find((e) => e.id === params.id);
+
+  // Oznacza ten wpis jako „otwarty", by terapeuta wiedział, na co patrzymy.
+  const entryId = entry?.id ?? null;
+  const entryCreatedAt = entry?.createdAt;
+  useEffect(() => {
+    if (entryId && entryCreatedAt) setOpenEntry(entryId, dayKey(entryCreatedAt));
+    return () => setOpenEntry(null, null);
+  }, [entryId, entryCreatedAt]);
 
   const handleDelete = () => {
     deleteEntry(params.id);

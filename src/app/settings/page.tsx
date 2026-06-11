@@ -3,6 +3,13 @@
 import { Button } from "@/components/ui/button";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useSoundEnabled } from "@/lib/settings";
+import {
+  useAutoSend,
+  useTherapistConsent,
+  useTherapistEnabled,
+} from "@/lib/therapist-prefs";
+import { clearHistory } from "@/lib/therapist-chat-store";
+import { DEFAULT_THERAPIST } from "@/lib/therapists";
 import { useSession, signInWithGoogle, signOut } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +51,23 @@ export default function SettingsPage() {
   const [soundEnabled, setSoundEnabled] = useSoundEnabled();
   const soundOn = hydrated && soundEnabled;
   const session = useSession();
+
+  const [therapistEnabled, setTherapistEnabled] = useTherapistEnabled();
+  const [autoSend, setAutoSend] = useAutoSend();
+  const [consent, setConsent] = useTherapistConsent();
+  const therapistOn = hydrated ? therapistEnabled : true;
+  const autoSendOn = hydrated && autoSend;
+  const consentGiven = hydrated && consent;
+
+  const handleClearHistory = () => {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Usunąć całą historię rozmów z terapeutą?")
+    ) {
+      return;
+    }
+    clearHistory();
+  };
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
@@ -97,6 +121,72 @@ export default function SettingsPage() {
               Zaloguj przez Google
             </Button>
           )}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Terapeuta ({DEFAULT_THERAPIST.name})
+        </h2>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Rozmowa z terapeutą</p>
+            <p className="text-sm text-muted-foreground">
+              Czat z {DEFAULT_THERAPIST.name} na podstawie Twoich wpisów,
+              dostępny w dolnym pasku.
+            </p>
+          </div>
+          <Toggle
+            checked={therapistOn}
+            onChange={setTherapistEnabled}
+            label="Rozmowa z terapeutą"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Wyślij od razu po dyktowaniu</p>
+            <p className="text-sm text-muted-foreground">
+              Po nagraniu głosem wiadomość poleci bez dodatkowego potwierdzenia.
+            </p>
+          </div>
+          <Toggle
+            checked={autoSendOn}
+            onChange={setAutoSend}
+            label="Wyślij od razu po dyktowaniu"
+          />
+        </div>
+
+        <div className="space-y-3 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Prywatność i dane</p>
+            <p className="text-sm text-muted-foreground">
+              Aby terapeuta mógł analizować dziennik, treść wpisów jest wysyłana
+              do modelu AI (xAI). {consentGiven
+                ? "Zgoda została udzielona."
+                : "Zgoda nie została jeszcze udzielona."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {consentGiven && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConsent(false)}
+              >
+                Cofnij zgodę
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={handleClearHistory}
+            >
+              Wyczyść historię rozmów
+            </Button>
+          </div>
         </div>
       </section>
 
