@@ -1,0 +1,160 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ProLog API",
+    "version": "1.0.0",
+    "description": "REST API do sterowania dziennikiem ProLog: dodawanie wpisów, pytania do cyfrowego terapeuty i odczyt wpisów na dany dzień. Każdy token działa w imieniu jednego użytkownika. Daty liczone w strefie Europe/Warsaw."
+  },
+  "servers": [{ "url": "/", "description": "Bieżący host" }],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Personal Access Token (prefiks plog_), wygenerowany w aplikacji."
+      }
+    },
+    "schemas": {
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "mood": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "sleep": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "energy": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "productivity": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "stress": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "title", "content", "createdAt"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } },
+        "required": ["error"]
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/entries": {
+      "post": {
+        "summary": "Dodanie wpisu",
+        "operationId": "createEntry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": { "type": "string", "description": "Treść wpisu (tekst lub HTML)." },
+                  "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Dzień wpisu (Europe/Warsaw). Domyślnie dziś." },
+                  "mood": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "sleep": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "energy": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "productivity": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "stress": { "type": "integer", "minimum": 1, "maximum": 5 }
+                },
+                "required": ["content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Utworzono",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "entry": { "$ref": "#/components/schemas/Entry" } }
+                }
+              }
+            }
+          },
+          "400": { "description": "Błędne dane", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Brak/zły token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/entries/{date}": {
+      "get": {
+        "summary": "Wpisy na dany dzień",
+        "operationId": "getEntriesByDate",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "description": "Dzień (Europe/Warsaw) w formacie YYYY-MM-DD."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "date": { "type": "string" },
+                    "entries": { "type": "array", "items": { "$ref": "#/components/schemas/Entry" } }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Zły format daty", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Brak/zły token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/agent": {
+      "post": {
+        "summary": "Pytanie do agenta (Freud)",
+        "operationId": "askAgent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "question": { "type": "string", "description": "Pytanie do agenta." },
+                  "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Dzień skupienia i wątek historii. Domyślnie dziś." },
+                  "from": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+                  "to": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+                },
+                "required": ["question"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "answer": { "type": "string" },
+                    "day": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Błędne dane", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Brak/zły token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "Agent niedostępny", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  }
+}

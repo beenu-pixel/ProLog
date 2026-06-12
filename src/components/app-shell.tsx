@@ -1,0 +1,52 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
+import { AppHeader } from "@/components/app-header";
+import { BottomBar } from "@/components/bottom-bar";
+import { cn } from "@/lib/utils";
+
+/**
+ * Powłoka aplikacji (nagłówek + treść + pływające paski). Na desktopie blokujemy
+ * wysokość do ekranu i chowamy przewijanie strony TYLKO w dzienniku (`/entries`),
+ * gdzie obowiązuje dwupanelowy master-detail z własnym przewijaniem paneli. Na
+ * pozostałych trasach (Ustawienia, Statystyki, …) zostawiamy normalny scroll
+ * strony, bo ich treść może być wyższa niż ekran.
+ */
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  // Trasy z dwupanelowym/„pełnoekranowym" układem, które przewijają się WEWNĄTRZ
+  // (własnym animowanym paskiem), a nie scrollem strony: dziennik oraz Ustawienia
+  // i Statystyki (tam treść opakowana w <PageScroll>).
+  const locked =
+    pathname.startsWith("/entries") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/stats");
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-dvh flex-col",
+        locked && "lg:h-dvh lg:overflow-hidden"
+      )}
+    >
+      <AppHeader />
+      {/* Mobile: dół rezerwuje miejsce na dwa pływające paski (kompozytor nad
+          dolnym navbarem) — stąd pb-44.
+          Desktop: na zablokowanych trasach treść przewija się WEWNĄTRZ i ma
+          wypełniać cały ekran (także pod pływającym kompozytorem z efektem
+          glass), więc NIE rezerwujemy tu dołu (lg:pb-0) — prześwit pod pasek
+          dodają same sekcje w przewijanej treści. Trasy bez własnego
+          przewijania trzymają klasyczny odstęp lg:pb-28. */}
+      <main
+        className={cn(
+          "flex w-full flex-1 flex-col pb-44",
+          locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : "lg:pb-28"
+        )}
+      >
+        {children}
+      </main>
+      <BottomBar />
+    </div>
+  );
+}

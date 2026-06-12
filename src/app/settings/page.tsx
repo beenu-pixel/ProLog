@@ -11,6 +11,8 @@ import {
 import { clearHistory } from "@/lib/therapist-chat-store";
 import { DEFAULT_THERAPIST } from "@/lib/therapists";
 import { useSession, signInWithGoogle, signOut } from "@/lib/auth";
+import { ApiTokenManager } from "@/components/api-token-manager";
+import { PageScroll } from "@/components/page-scroll";
 import { cn } from "@/lib/utils";
 
 function Toggle({
@@ -70,7 +72,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
+    <PageScroll>
+      <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
       <h1 className="text-2xl font-semibold tracking-tight">Ustawienia</h1>
 
       <section className="space-y-4">
@@ -122,6 +125,21 @@ export default function SettingsPage() {
             </Button>
           )}
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Klucze API (Personal Access Token)
+          </h2>
+          <a
+            href="/docs"
+            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Dokumentacja API
+          </a>
+        </div>
+        <ApiTokenManager />
       </section>
 
       <section className="space-y-4">
@@ -203,6 +221,7 @@ export default function SettingsPage() {
           </p>
         </div>
       </section>
-    </div>
+      </div>
+    </PageScroll>
   );
 }

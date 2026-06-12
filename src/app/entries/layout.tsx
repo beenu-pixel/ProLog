@@ -28,12 +28,12 @@ export default function EntriesLayout({
   }, []);
 
   return (
-    <div className="flex w-full flex-1 lg:gap-10">
+    <div className="flex w-full flex-1 lg:min-h-0 lg:gap-10">
       {/* Desktop: stała lista (master). Na mobile listę zastępuje widok dnia. */}
       <aside
         className={cn(
-          "hidden lg:block lg:w-[340px] lg:shrink-0 lg:border-r lg:py-6 lg:pl-8 lg:pr-8",
-          "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.5rem)]"
+          "hidden lg:block lg:w-[340px] lg:shrink-0 lg:border-r lg:pt-6 lg:pl-8 lg:pr-8",
+          "lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]"
         )}
       >
         <EntryList />
@@ -48,7 +48,7 @@ export default function EntriesLayout({
 
       <section
         className={cn(
-          "min-w-0 flex-1 px-6 py-6 lg:py-8 lg:pr-10",
+          "min-w-0 flex-1 px-6 py-6 lg:min-h-0 lg:overflow-y-auto lg:pt-8 lg:pb-28 lg:pr-10",
           isDetail ? "block" : "hidden lg:block"
         )}
       >

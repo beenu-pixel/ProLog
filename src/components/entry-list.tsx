@@ -13,6 +13,10 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { entryMatches } from "@/lib/search";
 import { playSound } from "@/lib/sound";
 
+// Maska wytapiająca górną i dolną krawędź listy (krótko i subtelnie).
+const ENTRY_LIST_MASK =
+  "linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 44px), transparent 100%)";
+
 /**
  * Lewy panel (lista/kalendarz wpisów) w stylu Stoic: nagłówek z wyszukiwarką
  * i przyciskiem dodawania oraz przewijalna lista wpisów. Na desktopie pełni rolę
@@ -67,7 +71,13 @@ export function EntryList() {
 
       <CustomScroll
         className="-mx-3 min-h-0 flex-1"
-        contentClassName="h-full px-3 pt-2"
+        contentClassName="h-full px-3 pt-2 pb-6"
+        // Subtelny, krótki fade krawędzi: u góry króciutko (14 px), u dołu nieco
+        // dłużej (44 px), żeby wpisy znikały stopniowo zamiast urywać się ostro.
+        contentStyle={{
+          WebkitMaskImage: ENTRY_LIST_MASK,
+          maskImage: ENTRY_LIST_MASK,
+        }}
       >
         {!ready ? null : entries.length === 0 ? (
           <p className="px-3 py-12 text-center text-sm text-muted-foreground">

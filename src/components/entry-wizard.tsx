@@ -11,6 +11,8 @@ import { ScalePicker } from "@/components/scale-picker";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { METRICS } from "@/lib/metrics";
 import { addEntry } from "@/lib/storage";
+import { deriveTitle } from "@/lib/api-entry";
+import { takeDraft } from "@/lib/entry-draft";
 import { playSound } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import type { MetricKey, Scale } from "@/lib/types";
@@ -29,6 +31,17 @@ export function EntryWizard() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Wersja robocza z dolnego paska („Zapisz jako wpis"): jeśli istnieje,
+  // wstawiamy treść i wnioskowany tytuł, więc kreator zaczyna od metryk, a
+  // gotową notatkę użytkownik tylko przegląda na ostatnim kroku.
+  useEffect(() => {
+    const draft = takeDraft();
+    if (draft) {
+      setContent(draft);
+      setTitle(deriveTitle(draft));
+    }
+  }, []);
 
   // Auto-przejście po wyborze wartości — z krótką zwłoką, by pokazać zaznaczenie.
   const advanceTimer = useRef<number | null>(null);

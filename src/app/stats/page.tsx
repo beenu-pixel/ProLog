@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { StatsCalendar } from "@/components/stats-calendar";
 import { StatsSummary } from "@/components/stats-summary";
 import { StatsDayPanel } from "@/components/stats-day-panel";
+import { PageScroll } from "@/components/page-scroll";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { addDays, dayKey, formatMonthYear } from "@/lib/format";
@@ -63,7 +64,8 @@ export default function StatsPage() {
   if (!ready) return null;
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
+    <PageScroll contentClassName="lg:pb-28">
+      <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
       <h1 className="text-2xl font-semibold tracking-tight">Statystyki</h1>
 
       <StatsCalendar
@@ -91,6 +93,7 @@ export default function StatsPage() {
         days={rangeDays}
         dayMap={dayMap}
       />
-    </div>
+      </div>
+    </PageScroll>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FileText } from "lucide-react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -17,6 +18,7 @@ export function AppHeader() {
     pathname === "/" || pathname.startsWith("/entries") || pathname === "/new";
   const statsActive = pathname.startsWith("/stats");
   const settingsActive = pathname.startsWith("/settings");
+  const docsActive = pathname.startsWith("/docs");
 
   const link = (active: boolean) =>
     cn(
@@ -47,6 +49,19 @@ export function AppHeader() {
         </div>
         <div className="flex items-center gap-2">
           <AccountMenu />
+          <Link
+            href="/docs"
+            aria-label="Dokumentacja API"
+            title="Dokumentacja API"
+            className={cn(
+              "flex size-9 items-center justify-center rounded-full transition-colors",
+              docsActive
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <FileText className="size-5" strokeWidth={docsActive ? 2.4 : 1.8} />
+          </Link>
           <ThemeToggle />
         </div>
       </div>
