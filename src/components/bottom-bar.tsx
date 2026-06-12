@@ -3,22 +3,18 @@
 import { usePathname } from "next/navigation";
 
 import { ComposerInput } from "@/components/composer-input";
-import { NavRow } from "@/components/bottom-nav";
+import { NavMenu } from "@/components/nav-menu";
 
 /**
- * Zunifikowany dolny pasek. Łączy w jeden pływający element pole kontekstowe
- * (rozmowa z Freudem + szybki wpis) oraz — na mobile — rząd nawigacji pod nim.
- * Zastępuje dawne, osobne `ComposerBar` i `BottomNav`.
+ * Pływający dolny pasek (mobile-first). Całą nawigację chowamy pod jedną ikoną
+ * hamburgera (`NavMenu`), która rozwija menu w górę — dzięki temu pasek jest
+ * niski i nie zajmuje dołu ekranu.
  *
  * Zachowanie wg trasy:
  * - `/welcome`, formularze (`/new`, `/…/edit`) → ukryty w całości,
- * - `/docs`, `/settings` → tylko nawigacja (bez pola i bez „+", czyli bez
- *   tworzenia wpisu); na desktopie nic (nawigacja jest w nagłówku),
- * - pozostałe → pole + (na mobile) pełna nawigacja.
- *
- * Renderujemy POJEDYNCZY `ComposerInput` (jeden stan czatu/transkrypcji);
- * o szerokości i pozycji decydują klasy responsywne, a nawigację chowamy na
- * desktopie (`lg:hidden`).
+ * - `/docs`, `/settings` → kompaktowa pastylka z samym hamburgerem (mobile;
+ *   na desktopie nic — nawigacja jest w nagłówku),
+ * - pozostałe → kompozytor (pole + hamburger po lewej na mobile).
  */
 export function BottomBar() {
   const pathname = usePathname();
@@ -26,16 +22,13 @@ export function BottomBar() {
   const isForm = pathname === "/new" || pathname.endsWith("/edit");
   if (isForm || pathname === "/welcome") return null;
 
-  // Trasy „tylko nawigacja": brak pola i brak tworzenia wpisu.
+  // Trasy „tylko nawigacja": bez pola/tworzenia wpisu — sam hamburger (mobile).
   const navOnly = pathname === "/settings" || pathname.startsWith("/docs");
-
-  // Tylko nawigacja (mobile): pojedyncza glass-pastylka z ikonami, bez „+".
-  // Na desktopie nic (nawigacja jest w nagłówku).
   if (navOnly) {
     return (
       <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4 lg:hidden">
-        <div className="w-full max-w-md overflow-hidden rounded-[1.75rem] border bg-background/85 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <NavRow allowCreate={false} />
+        <div className="flex items-center rounded-full border bg-background/85 px-2 py-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <NavMenu />
         </div>
       </div>
     );
@@ -44,11 +37,7 @@ export function BottomBar() {
   return (
     <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4 lg:bottom-6">
       <div className="w-full max-w-md lg:max-w-2xl">
-        {/* Pole + nawigacja (mobile) jako jeden glass-panel; nawigacja jest
-            slotem renderowanym wewnątrz panelu pod polem. */}
-        <ComposerInput>
-          <NavRow allowCreate />
-        </ComposerInput>
+        <ComposerInput />
       </div>
     </div>
   );

@@ -39,7 +39,8 @@ export function StatsCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      {/* Przełącznik widoku — osobny wiersz na górze (pełny rozmiar) */}
+      <div className="flex">
         <div className="flex rounded-full border p-0.5 text-sm">
           {(["week", "month"] as const).map((v) => (
             <button
@@ -57,28 +58,29 @@ export function StatsCalendar({
             </button>
           ))}
         </div>
+      </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Poprzedni okres"
-            onClick={() => onNavigate(-1)}
-          >
-            <ChevronLeft className="size-5" />
-          </Button>
-          <span className="min-w-[7.5rem] text-center text-sm font-medium">
-            {periodLabel}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Następny okres"
-            onClick={() => onNavigate(1)}
-          >
-            <ChevronRight className="size-5" />
-          </Button>
-        </div>
+      {/* Nawigacja okresu — bezpośrednio nad kalendarzem, strzałki przy krawędziach */}
+      <div className="flex items-center justify-between gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Poprzedni okres"
+          onClick={() => onNavigate(-1)}
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <span className="flex-1 text-center text-sm font-medium">
+          {periodLabel}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Następny okres"
+          onClick={() => onNavigate(1)}
+        >
+          <ChevronRight className="size-5" />
+        </Button>
       </div>
 
       <div className="flex gap-1">

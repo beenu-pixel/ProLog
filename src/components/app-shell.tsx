@@ -31,8 +31,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
     >
       <AppHeader />
-      {/* Mobile: dół rezerwuje miejsce na dwa pływające paski (kompozytor nad
-          dolnym navbarem) — stąd pb-44.
+      {/* Mobile: dół rezerwuje miejsce na pojedynczy pływający pasek
+          (kompozytor / hamburger) — stąd pb-28.
           Desktop: na zablokowanych trasach treść przewija się WEWNĄTRZ i ma
           wypełniać cały ekran (także pod pływającym kompozytorem z efektem
           glass), więc NIE rezerwujemy tu dołu (lg:pb-0) — prześwit pod pasek
@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           przewijania trzymają klasyczny odstęp lg:pb-28. */}
       <main
         className={cn(
-          "flex w-full flex-1 flex-col pb-44",
+          "flex w-full flex-1 flex-col pb-28",
           locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : "lg:pb-28"
         )}
       >

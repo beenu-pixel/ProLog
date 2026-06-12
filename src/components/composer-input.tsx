@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bot, Loader2, Mic, NotebookPen, SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { NavMenu } from "@/components/nav-menu";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useEntries } from "@/hooks/use-entries";
 import { useActiveContext } from "@/lib/active-context";
@@ -50,12 +51,11 @@ function textToHtml(text: string): string {
  *
  * Bez własnego pozycjonowania — układ (fixed, odstępy) ustala `BottomBar`.
  *
- * `children` to slot na nawigację (mobile), renderowany WEWNĄTRZ tego samego
- * glass-panelu pod polem — dzięki temu pole i nawigacja to jeden, spójny pasek,
- * a nie dwie osobne pastylki. Na desktopie pole jest samodzielną pastylką
- * (panel zewnętrzny przezroczysty), a slot nawigacji jest ukryty.
+ * Lewy przycisk pola: na mobile to hamburger (`NavMenu`) z całą nawigacją; na
+ * desktopie zostaje ikona Bota (szybkie otwarcie/zamknięcie rozmowy z Freudem),
+ * bo nawigacja jest w nagłówku.
  */
-export function ComposerInput({ children }: { children?: React.ReactNode }) {
+export function ComposerInput() {
   const router = useRouter();
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,6 +72,7 @@ export function ComposerInput({ children }: { children?: React.ReactNode }) {
   const [closing, setClosing] = useState(false);
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- montaż panelu na czas animacji wejścia
       setMounted(true);
       setClosing(false);
     } else if (mounted) {
@@ -164,6 +165,10 @@ export function ComposerInput({ children }: { children?: React.ReactNode }) {
             "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70"
           )}
         >
+        {/* Mobile: hamburger → menu nawigacji (zastępuje dawną ikonę AI). */}
+        <NavMenu className="lg:hidden" />
+
+        {/* Desktop: szybkie otwarcie/zamknięcie rozmowy z Freudem. */}
         <button
           type="button"
           onClick={() => enabled && toggleOpen()}
@@ -171,7 +176,7 @@ export function ComposerInput({ children }: { children?: React.ReactNode }) {
           aria-label="Rozmowa z terapeutą"
           aria-pressed={open}
           className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+            "hidden size-9 shrink-0 items-center justify-center rounded-full transition-colors lg:flex",
             open ? "text-primary" : "text-muted-foreground hover:text-foreground",
             !enabled && "cursor-not-allowed opacity-50"
           )}
@@ -269,12 +274,6 @@ export function ComposerInput({ children }: { children?: React.ReactNode }) {
           </button>
         )}
         </form>
-
-        {/* Nawigacja (mobile) — w tym samym panelu, pod polem, oddzielona cienką
-            linią. Na desktopie ukryta (nawigacja jest w nagłówku). */}
-        {children && (
-          <div className="border-t border-border/60 lg:hidden">{children}</div>
-        )}
       </div>
     </div>
   );
