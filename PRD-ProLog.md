@@ -1,27 +1,57 @@
 # PRD — ProLog
 
-**Wersja:** 1.0 (Etap 1 — pierwsza skorupa)
-**Data:** 2026-06-01
-**Status:** Draft do realizacji
+**Wersja:** 3.0 (Etap 3 — warstwa AI)
+**Data:** 2026-06-13
+**Status:** Żywy dokument — Etap 1 (fundament) i Etap 2 (baza + logowanie) zrealizowane; trwa Etap 3 (AI)
+
+> **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
+> opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
+> ekranów) — te zasady **nadal obowiązują** i są punktem odniesienia przy każdej zmianie
+> UI/UX; kolejne etapy je **rozbudowują**, a nie zastępują. Sekcje 7–10 dodają to, co
+> doszło później (baza, konto, AI), a **Changelog** mówi *kiedy* dana zdolność powstała.
+> Numeracja „Etap 1/2/3” oznacza warstwy produktu narastające w czasie, nie wersje do
+> odrzucenia. Gdy zmieniamy coś w UI, aktualizujemy odpowiedni punkt tutaj, by PRD zawsze
+> odzwierciedlał bieżący, zamierzony stan aplikacji.
+
+---
+
+## Stan obecny (skrót)
+
+Co już działa w aplikacji:
+
+- **Dziennik z CRUD** — dodawanie, edycja, usuwanie wpisów; tryb jasny/ciemny.
+- **Desktop master-detail**, **wyszukiwarka**, **seed** danych, **ekran statystyk**,
+  **dźwięki interakcji**, **mobilna nawigacja w hamburgerze**.
+- **Trwały zapis w chmurze** po zalogowaniu (Supabase) + **logowanie Google / e-mail**,
+  dwukierunkowa synchronizacja z `localStorage`.
+- **AI:** dyktowanie głosem (transkrypcja), cyfrowy terapeuta „Freud”, sterowanie
+  dziennikiem przez **REST API** i **serwer MCP** (Personal Access Token), strona `/docs`.
+
+Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3) i 9 (planowane: bezpieczeństwo AI).
 
 ---
 
 ## 1. Kontekst
 
-ProLog to osobista aplikacja typu dziennik (journaling), która ma pozwolić użytkownikowi
+ProLog to osobista aplikacja typu dziennik (journaling), która pozwala użytkownikowi
 na codzienne zapisywanie wpisów i gromadzenie ich w jednym miejscu.
 
-Aplikacja **aktualnie nie istnieje** — budujemy ją od zera. Pierwszy etap to świadomie
-minimalna, działająca "skorupa": jej jedynym zadaniem jest umożliwić dodawanie wpisów
-oraz ich przeglądanie. Nie budujemy jeszcze backendu, kont użytkowników ani warstwy AI.
+Fundamentem produktu (Etap 1) była świadomie minimalna, działająca „skorupa”: dodawanie
+i przeglądanie wpisów. Ten fundament — opisany w sekcjach 1–6 — **nadal obowiązuje** jako
+bazowa specyfikacja UI, nawigacji, motywu i modelu danych. Kolejne etapy dołożyły do niego
+backend (Etap 2) i warstwę AI (Etap 3), opisane w sekcjach 7+.
+
+> **Dla czytelnika z przyszłości:** poniższy opis Etapu 1 to nie „jak było kiedyś”, lecz
+> obowiązujące zasady fundamentu. Zmieniając UI/UX, edytuj odpowiedni punkt zamiast traktować
+> go jako nieaktualny.
 
 Inspiracją wizualną i funkcjonalną są istniejące aplikacje do refleksji i prowadzenia
 dziennika (Stoic, Liven, ABY Journal — patrz sekcja *Referencje*), które łączą prosty
 formularz wpisu z przejrzystą listą wcześniejszych refleksji.
 
 **Plan długoterminowy (poza zakresem Etapu 1):**
-- Etap 2 — baza danych (trwały zapis wpisów, synchronizacja między urządzeniami).
-- Etap 3 — warstwa AI analizująca zgromadzone wpisy i generująca podsumowania/wnioski.
+- Etap 2 — baza danych (trwały zapis wpisów, synchronizacja między urządzeniami). ✅ **Zrealizowany** (Supabase + logowanie) — patrz sekcja 7.
+- Etap 3 — warstwa AI analizująca zgromadzone wpisy i generująca podsumowania/wnioski. 🔄 **W realizacji** (transkrypcja, terapeuta, API/MCP) — patrz sekcja 8.
 
 Decyzje techniczne przyjęte dla Etapu 1:
 - **Platforma:** aplikacja webowa (React / Next.js), uruchamiana w przeglądarce.
@@ -55,11 +85,12 @@ Zbudować pierwszą działającą wersję ProLog, która pozwala użytkownikowi:
 - Nawigacja między ekranami.
 - **Tryb jasny i ciemny** z przełącznikiem widocznym na wszystkich ekranach.
 
-### Poza zakresem (out of scope — kolejne etapy)
-- Baza danych i backend.
-- Logowanie / konta użytkowników.
-- Analiza AI i podsumowania.
-- Załączniki (zdjęcia), tagi, wyszukiwanie.
+### Poza zakresem Etapu 1 (zrealizowane w kolejnych etapach)
+- ~~Baza danych i backend.~~ → ✅ Etap 2 (Supabase).
+- ~~Logowanie / konta użytkowników.~~ → ✅ Etap 2 (Google OAuth / e-mail).
+- ~~Analiza AI i podsumowania.~~ → 🔄 Etap 3 (terapeuta, transkrypcja, API/MCP).
+- ~~Wyszukiwanie.~~ → ✅ dodane w Etapie 2.
+- Wciąż poza zakresem: załączniki (zdjęcia), tagi.
 
 ### Kryteria sukcesu (Etap 1)
 - Użytkownik może dodać wpis i natychmiast zobaczyć go na liście.
@@ -142,11 +173,11 @@ na środku służący do dodawania nowego wpisu.
 - **Środek — okrągły przycisk „+"** (wyróżniony, ciemne kółko jak w Stoic) → Ekran 1
   (dodawanie nowego wpisu na dzisiaj).
 
-> Aplikacja w Etapie 1 ma **tylko trzy ekrany** i **nie ma osobnej zakładki Ustawień**.
-> Jedyne ustawienie — przełącznik trybu jasny/ciemny — to ikona dostępna na wszystkich
-> ekranach (patrz: *Element wspólny — Przełącznik trybu jasny/ciemny*), a nie pozycja
-> w navbarze. Pasek jest celowo zredukowany względem Stoic (5 pozycji). Można go
-> rozbudować w kolejnych etapach.
+> W fundamencie (Etap 1) aplikacja miała **trzy ekrany** i **brak osobnej zakładki Ustawień**;
+> jedynym ustawieniem był przełącznik jasny/ciemny dostępny na wszystkich ekranach.
+> **Stan aktualny:** nawigacja została rozbudowana — doszły m.in. **Ustawienia** i
+> **Statystyki**, a na mobile całość kryje się w hamburgerze (`NavMenu`). Zasada „dyskretny,
+> zredukowany pasek w duchu Stoic” pozostaje w mocy. Szczegóły: sekcja 7.3.
 
 ### Zachowanie
 - Dolny navbar jest widoczny na ekranach **przeglądania**: lista wpisów oraz szczegół wpisu.
@@ -206,4 +237,159 @@ służą jedynie jako kierunek.)*
 9. **Test ręczny** — dodanie / edycja / usunięcie wpisów, weryfikacja trwałości i przełącznika
    motywu po odświeżeniu.
 
-> Po zakończeniu Etapu 1 przechodzimy do Etapu 2 (baza danych) i Etapu 3 (analiza AI).
+> Powyższe kroki Etapu 1 są zrealizowane i stanowią fundament; kolejne etapy (poniżej)
+> rozbudowują go o bazę danych i warstwę AI.
+
+---
+
+# Część II — Rozbudowa fundamentu: Etap 2 i Etap 3
+
+> Poniższe sekcje **rozbudowują** fundament z sekcji 1–6 (nie zastępują go). Opisują
+> zdolności dołożone po Etapie 1 i odzwierciedlają obecny kod. Zasady stylu, nawigacji
+> i motywu z Części I obowiązują również tutaj.
+
+## 7. Etap 2 — Trwałość i konto (zrealizowane)
+
+Cel etapu: wpisy przestają być zamknięte w jednej przeglądarce — są trwale zapisywane
+w chmurze i synchronizowane po zalogowaniu, a aplikacja zyskuje konto użytkownika oraz
+kilka udogodnień przeglądania.
+
+### 7.1 Baza danych — Supabase
+- Backend oparty na **Supabase** (Postgres + Auth). Tabela `entries` przechowuje wpisy
+  użytkownika (z kolumną `user_id`).
+- `localStorage` pozostaje źródłem działającym **offline**; po zalogowaniu jest
+  **mirrorowany** do Supabase.
+- **Dwukierunkowa synchronizacja przy logowaniu:** najpierw `pullAll` → `mergeRemoteEntries`
+  (wciągnięcie wpisów z chmury do `localStorage`), potem `pushAll` (wypchnięcie stanu
+  lokalnego z powrotem), by oba źródła się zgadzały. Best-effort — błąd sieci nie wywraca
+  logowania.
+
+### 7.2 Logowanie / konto
+- **Google OAuth** oraz **e-mail + hasło** (rejestracja z opcjonalnym potwierdzeniem maila).
+  Sesję trzyma supabase-js w `localStorage`, z auto-odświeżaniem tokenu i przejęciem
+  sesji z URL po powrocie z OAuth.
+- Projekt działa w **trybie testowym** (lista testerów).
+- Reaktywna sesja przez `useSession()` — pojedyncza subskrypcja `onAuthStateChange`
+  dla całej aplikacji.
+
+### 7.3 Nowe ekrany i udogodnienia
+- **Ekran Ustawień** (`/settings`) — konto (login/wylogowanie), dźwięki, a w Etapie 3
+  także preferencje AI i klucze API. (Aplikacja wyszła poza pierwotne „3 ekrany bez Ustawień”.)
+- **Ekran Statystyk** — przegląd nastroju/aktywności w czasie (nawigacja po miesiącach).
+- **Wyszukiwarka** wpisów + **seed** przykładowych danych + **formatowanie dat** (testy Vitest).
+- **Desktop master-detail** — dwupanelowy układ listy i szczegółu na szerokich ekranach.
+- **Dźwięki interakcji** (markery + helper `playSound`).
+- **Mobilna nawigacja w hamburgerze** (`NavMenu`) — cała nawigacja schowana w menu na mobile.
+
+### 7.4 Zmiany w modelu danych
+- Wpis zyskał ustrukturyzowane **metryki** (skala nastroju/dnia) ponad proste pole 1–5.
+- W bazie każdy wiersz ma `user_id`; treść (`treść`) zapisywana jako HTML z edytora TipTap.
+
+---
+
+## 8. Etap 3 — Warstwa AI (zrealizowane do tej pory)
+
+Cel etapu: wykorzystać zgromadzone wpisy — wprowadzanie głosem oraz rozmowa/analiza AI nad
+dziennikiem, a także udostępnienie dziennika programistycznie (API + MCP).
+
+### 8.1 Transkrypcja głosu (Groq Whisper)
+- Przycisk **mikrofonu** w dolnym pasku (`ComposerBar` / `composer-input.tsx`) nagrywa głos
+  i wysyła do **`/api/transcribe`**, gdzie serwer woła **Groq Whisper** (`whisper-large-v3-turbo`,
+  język polski). Klucz `GROQ_API_KEY` jest **serwerowy** — nigdy w przeglądarce.
+- Pierwsza wersja używała Web Speech API; obecnie standardem jest Groq (lepsza jakość polskiego
+  i interpunkcja). Hook `useTranscription` zarządza `MediaRecorder` i stanami
+  `supported` / `listening` / `transcribing`.
+
+### 8.2 Cyfrowy terapeuta „Freud”
+- Czat nad wpisami w stylu psychoanalitycznym przez **`/api/therapist`** (model **xAI Grok 4.3**,
+  klucz `XAI_API_KEY` serwerowo).
+- **Kontekst warstwowy** pod cache xAI: persona (system) → dziennik (system) → historia
+  rozmowy → świeży kontekst UI dołączony do ostatniego pytania użytkownika.
+- **Zgoda i prywatność:** przed pierwszym użyciem użytkownik akceptuje wysyłanie treści wpisów
+  do modelu; zgodę można cofnąć, a historię wyczyścić (Ustawienia).
+- Historia rozmów: `localStorage` jako źródło + mirror do Supabase
+  (`therapist_conversations` / `therapist_messages`). „Efekt pisania” odtwarzany po stronie
+  serwera (chunkowanie słów) — odporny na buforowanie SSE przez proxy/antywirusy.
+- Pole w dolnym pasku jest **dwufunkcyjne**: szybka notatka („Zapisz jako wpis” → `/new`)
+  oraz rozmowa z Freudem.
+
+### 8.3 REST API `/api/v1`
+- Programistyczny dostęp do dziennika: **Create** (dodaj wpis), **Ask** (zapytaj agenta/Freuda
+  nad dziennikiem), **Read** (odczyt wpisów dnia).
+- Uwierzytelnianie **Personal Access Tokenem (PAT)**: nagłówek `Authorization: Bearer plog_…`.
+  W bazie (`api_tokens`) trzymany jest wyłącznie **hash SHA-256** tokenu + prefiks do
+  wyświetlania + `last_used_at`. Serwer używa klucza sekretnego Supabase (`SUPABASE_SECRET_KEY`)
+  i ręcznie filtruje po `user_id`.
+- Logika współdzielona w `src/lib/services/*` (zero duplikacji między REST a MCP).
+
+### 8.4 Serwer MCP (Remote HTTP)
+- **`/api/mcp`** (mcp-handler, Streamable HTTP) udostępnia narzędzia
+  **`create_entry`**, **`read_entries`**, **`ask_agent`** na tych samych serwisach co REST.
+- Ten sam **PAT** do autoryzacji (`withMcpAuth` → `verifyApiToken`).
+
+### 8.5 Dokumentacja `/docs`
+- Strona w stylu docs.vercel.com z **zakładkami API / MCP**, opisem endpointów,
+  przykładami request/response oraz **generatorem tokenu** (Personal Access Token).
+
+---
+
+## 9. Etap 3 — Planowane teraz: bezpieczeństwo i rozliczalność AI
+
+Problem: endpointy AI (`/api/transcribe`, `/api/therapist`) nie mają autoryzacji i działają na
+serwerowych kluczach właściciela — każdy odwiedzający może „przepalać” kredyty xAI/Groq, bez
+śladu kto. Zaplanowana zmiana to zamknięcie funkcji AI za logowaniem i rozliczalność zużycia.
+
+### 9.1 Funkcje AI tylko po zalogowaniu (egzekwowane na serwerze)
+- Dostęp do: **transkrypcji**, **terapeuty Freud** i **generowania kluczy API/MCP** wymaga
+  zalogowania — weryfikacja tokena sesji Supabase po stronie serwera (nie tylko ukrycie UI).
+- Reszta aplikacji (dziennik, dodawanie/edycja wpisów, statystyki, motyw jasny/ciemny) działa
+  **bez zmian** dla wszystkich, również niezalogowanych.
+
+### 9.2 Ukrycie UI AI przed niezalogowanym
+- Niezalogowany użytkownik **nie widzi**, że funkcje AI istnieją: ukryte mikrofon i czat
+  z Freudem w dolnym pasku oraz sekcje AI/klucze w Ustawieniach. Pozostaje pole notatki
+  („Zapisz jako wpis”).
+- Strona `/docs` pozostaje widoczna, ale **generator klucza** działa tylko po zalogowaniu.
+
+### 9.3 Log zużycia i panel rozliczalności
+- Nowa tabela **`ai_usage`** (konto/e-mail, endpoint, model, liczby tokenów, znacznik czasu) —
+  każde wywołanie AI staje się przypisane do konta.
+- **Panel zużycia per konto** w Ustawieniach, widoczny **tylko dla właściciela**
+  (lista adminów w zmiennej środowiskowej), by widzieć, kto zużywa kredyty xAI/Groq.
+
+> Szczegóły implementacyjne tej zmiany są w osobnym planie wdrożeniowym.
+
+---
+
+## 10. Architektura i klucze (skrót techniczny)
+
+- **Frontend/Backend:** Next.js (zmodyfikowana wersja — patrz `AGENTS.md`), React,
+  shadcn/ui, TipTap.
+- **Baza/Auth:** Supabase (ref `aqdtcggmownyvsnxnjao`).
+- **Modele AI:** Groq Whisper (`whisper-large-v3-turbo`) do transkrypcji; xAI Grok 4.3
+  do terapeuty/agenta.
+- **Klucze (zmienne środowiskowe, serwerowe):** `GROQ_API_KEY`, `XAI_API_KEY`,
+  `SUPABASE_SECRET_KEY` (sekret `sb_secret_…`, wymagany przez REST/MCP — inaczej 503),
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (klient).
+- **Personal Access Token:** prefiks `plog_`, w bazie tylko hash SHA-256 (`api_tokens`).
+
+---
+
+## Changelog
+
+| Data        | Zmiana                                                                                  | Etap |
+|-------------|-----------------------------------------------------------------------------------------|------|
+| 2026-06-01  | Skorupa: dziennik z CRUD, motyw jasny/ciemny, pływający navbar (localStorage).          | 1    |
+| 2026-06-02  | Warstwa danych: wyszukiwarka, seed, formatowanie dat + testy Vitest.                    | 2    |
+| 2026-06-02  | Desktop master-detail; ukryty navbar w formularzach + strzałka powrotu.                 | 2    |
+| 2026-06-02  | Suwak nastroju (dopracowanie); motyw bez migotania (crossfade).                         | 1/2  |
+| 2026-06-02  | Edytor: przycisk „Dyktuj” (Web Speech API).                                             | 3    |
+| 2026-06-03  | Dźwięki interakcji; animowany pasek przewijania; animacja przełącznika motywu.          | 2    |
+| 2026-06-10  | Transkrypcja głosu przez Groq Whisper (`/api/transcribe`).                              | 3    |
+| 2026-06-11  | Cyfrowy terapeuta „Freud”: czat nad wpisami (xAI) + dwukierunkowa synchronizacja.       | 3    |
+| 2026-06-12  | Serwer MCP (Remote HTTP) + REST API `/api/v1` + dokumentacja `/docs` (zakładki API/MCP).| 3    |
+| 2026-06-12  | Mobilna nawigacja w hamburgerze + poprawka strzałki miesiąca w Statystykach.            | 2    |
+| 2026-06-13  | Dokumentacja MCP: przykłady request/response dla każdego narzędzia.                     | 3    |
+| *planowane* | Gating funkcji AI za logowaniem + ukrycie UI AI + log/panel zużycia (`ai_usage`).       | 3    |
+
+> Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
