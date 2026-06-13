@@ -150,9 +150,45 @@ export function McpDocs({ origin }: { origin: string }) {
               { name: "stress", type: "int 1–5", required: false, desc: "Poziom stresu." },
             ]}
           />
+          <p className="text-sm font-medium">Przykład — wywołanie</p>
+          <CodeBlock
+            label="request (tools/call)"
+            code={`{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_entry",
+    "arguments": { "content": "Dziś był dobry dzień.", "mood": 4, "sleep": 3 }
+  }
+}`}
+          />
           <p className="text-sm text-muted-foreground">
-            Zwraca tekstowy JSON: <code className="font-mono">{`{ "entry": { … } }`}</code>.
+            Odpowiedź wraca ramką Streamable HTTP (SSE). Wynik narzędzia to tekst w{" "}
+            <code className="font-mono">result.content[0].text</code> — JSON zapisany
+            jako string:
           </p>
+          <CodeBlock
+            label="response (surowa ramka)"
+            code={`event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\\"entry\\":{\\"id\\":\\"8f3c…\\",\\"title\\":\\"Dziś był dobry dzień.\\",\\"mood\\":4,\\"sleep\\":3,\\"createdAt\\":\\"2026-06-11T10:00:00.000Z\\"}}"}]}}`}
+          />
+          <p className="text-sm text-muted-foreground">
+            Po zdekodowaniu <code className="font-mono">content[0].text</code>:
+          </p>
+          <CodeBlock
+            label="content[0].text"
+            code={`{
+  "entry": {
+    "id": "8f3c…",
+    "title": "Dziś był dobry dzień.",
+    "content": "Dziś był dobry dzień.",
+    "mood": 4,
+    "sleep": 3,
+    "createdAt": "2026-06-11T10:00:00.000Z"
+  }
+}`}
+          />
         </Endpoint>
 
         {/* read_entries */}
@@ -167,9 +203,34 @@ export function McpDocs({ origin }: { origin: string }) {
               { name: "date", type: "string (YYYY-MM-DD)", required: true, desc: "Dzień, którego wpisy chcesz pobrać." },
             ]}
           />
+          <p className="text-sm font-medium">Przykład — wywołanie</p>
+          <CodeBlock
+            label="request (tools/call)"
+            code={`{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": { "name": "read_entries", "arguments": { "date": "2026-06-11" } }
+}`}
+          />
           <p className="text-sm text-muted-foreground">
-            Zwraca tekstowy JSON: <code className="font-mono">{`{ "date": "…", "entries": [ … ] }`}</code>.
+            Odpowiedź jak wyżej (ramka SSE); zdekodowany{" "}
+            <code className="font-mono">content[0].text</code>:
           </p>
+          <CodeBlock
+            label="content[0].text"
+            code={`{
+  "date": "2026-06-11",
+  "entries": [
+    {
+      "id": "8f3c…",
+      "title": "Dziś był dobry dzień.",
+      "mood": 4,
+      "createdAt": "2026-06-11T10:00:00.000Z"
+    }
+  ]
+}`}
+          />
         </Endpoint>
 
         {/* ask_agent */}
@@ -187,9 +248,30 @@ export function McpDocs({ origin }: { origin: string }) {
               { name: "to", type: "string (YYYY-MM-DD)", required: false, desc: "Koniec okresu." },
             ]}
           />
+          <p className="text-sm font-medium">Przykład — wywołanie</p>
+          <CodeBlock
+            label="request (tools/call)"
+            code={`{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "ask_agent",
+    "arguments": { "question": "Jak wyglądał mój tydzień?", "day": "2026-06-11" }
+  }
+}`}
+          />
           <p className="text-sm text-muted-foreground">
-            Zwraca tekstowy JSON: <code className="font-mono">{`{ "answer": "…", "day": "…" }`}</code>.
+            Odpowiedź jak wyżej (ramka SSE); zdekodowany{" "}
+            <code className="font-mono">content[0].text</code>:
           </p>
+          <CodeBlock
+            label="content[0].text"
+            code={`{
+  "answer": "Zajrzałem do twojego dziennika…",
+  "day": "2026-06-11"
+}`}
+          />
         </Endpoint>
 
         {/* Surowe JSON-RPC */}
@@ -211,15 +293,20 @@ export function McpDocs({ origin }: { origin: string }) {
   -H "Accept: application/json, text/event-stream" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}
           />
+          <p className="text-sm text-muted-foreground">
+            Pełne wywołania narzędzi (request + response) znajdziesz przy każdym
+            narzędziu wyżej. Tu handshake otwierający sesję:
+          </p>
           <CodeBlock
-            label="tools/call → create_entry"
+            label="initialize"
             code={`curl -X POST ${mcpUrl} \\
   -H "Authorization: Bearer $PROLOG_TOKEN" \\
   -H "Content-Type: application/json" \\
   -H "Accept: application/json, text/event-stream" \\
   -d '{
-    "jsonrpc":"2.0","id":2,"method":"tools/call",
-    "params":{"name":"create_entry","arguments":{"content":"Wpis z MCP","mood":4}}
+    "jsonrpc":"2.0","id":0,"method":"initialize",
+    "params":{"protocolVersion":"2025-06-18","capabilities":{},
+      "clientInfo":{"name":"curl","version":"1.0"}}
   }'`}
           />
         </section>
