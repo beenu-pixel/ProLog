@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Check, Copy, KeyRound, Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
-import { useSession, signInWithGoogle } from "@/lib/auth";
+import { useSession } from "@/lib/auth";
 import {
   listTokens,
   createToken,
@@ -90,8 +91,8 @@ export function ApiTokenManager() {
           Zaloguj się, aby wygenerować Personal Access Token i sterować aplikacją
           przez API.
         </p>
-        <Button variant="outline" size="sm" onClick={() => signInWithGoogle()}>
-          Zaloguj przez Google
+        <Button asChild variant="outline" size="sm">
+          <Link href="/welcome">Zaloguj się lub załóż konto</Link>
         </Button>
       </div>
     );

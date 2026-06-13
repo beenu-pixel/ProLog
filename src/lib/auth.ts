@@ -73,6 +73,17 @@ export function useSession(): Session | null {
   return session;
 }
 
+/**
+ * Token dostępu aktualnej sesji (JWT) — dosyłany w nagłówku `Authorization` do
+ * chronionych endpointów AI (`/api/transcribe`, `/api/therapist`). `null`, gdy
+ * wylogowany lub brak konfiguracji.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  if (!isConfigured || !supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
 /** Rozpoczyna logowanie przez Google (redirect z powrotem na /settings). */
 export async function signInWithGoogle(): Promise<void> {
   if (!isConfigured || !supabase) return;

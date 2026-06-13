@@ -12,6 +12,18 @@ export interface ChatMessage {
   content: string;
 }
 
+/** Zużycie tokenów zwrócone przez xAI (gdy dostępne). */
+export interface XaiUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+/** Odpowiedź modelu wraz z opcjonalnym zużyciem tokenów. */
+export interface XaiResult {
+  content: string;
+  usage: XaiUsage;
+}
+
 /** Błąd wywołania xAI z kodem HTTP do zmapowania na odpowiedź endpointu. */
 export class XaiError extends Error {
   constructor(
@@ -24,10 +36,11 @@ export class XaiError extends Error {
 }
 
 /**
- * Wysyła komplet wiadomości do xAI i zwraca treść odpowiedzi modelu.
- * Rzuca `XaiError` (z kodem 503/502), gdy brak klucza lub usługa zawiedzie.
+ * Wysyła komplet wiadomości do xAI i zwraca treść odpowiedzi modelu wraz z
+ * zużyciem tokenów (gdy dostępne). Rzuca `XaiError` (z kodem 503/502), gdy brak
+ * klucza lub usługa zawiedzie.
  */
-export async function askXai(messages: ChatMessage[]): Promise<string> {
+export async function askXai(messages: ChatMessage[]): Promise<XaiResult> {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
     throw new XaiError("Brak XAI_API_KEY — agent niedostępny.", 503);
@@ -60,11 +73,17 @@ export async function askXai(messages: ChatMessage[]): Promise<string> {
   }
 
   let content = "";
+  let usage: XaiUsage = { inputTokens: null, outputTokens: null };
   try {
     const data = (await upstream.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     content = data.choices?.[0]?.message?.content ?? "";
+    usage = {
+      inputTokens: data.usage?.prompt_tokens ?? null,
+      outputTokens: data.usage?.completion_tokens ?? null,
+    };
   } catch {
     content = "";
   }
@@ -73,5 +92,5 @@ export async function askXai(messages: ChatMessage[]): Promise<string> {
     throw new XaiError("Pusta odpowiedź modelu.", 502);
   }
 
-  return content;
+  return { content, usage };
 }

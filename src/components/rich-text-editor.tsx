@@ -6,6 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Bold, Italic, List, ListOrdered, Loader2, Mic } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth";
 import { useTranscription } from "@/hooks/use-transcription";
 
 interface RichTextEditorProps {
@@ -88,6 +89,8 @@ function DictateButton({ editor }: { editor: Editor }) {
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
+  // Dyktowanie (transkrypcja AI) tylko dla zalogowanych — spójnie z dolnym paskiem.
+  const loggedIn = Boolean(useSession());
   return (
     <div className="flex items-center gap-1 border-b px-2 py-1.5">
       <ToolbarButton
@@ -119,10 +122,14 @@ function Toolbar({ editor }: { editor: Editor }) {
         <ListOrdered className="size-4" />
       </ToolbarButton>
 
-      {/* Pionowy divider oddzielający formatowanie od dyktowania. */}
-      <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
-
-      <DictateButton editor={editor} />
+      {/* Dyktowanie — tylko zalogowani (funkcja AI). Gość widzi samo formatowanie. */}
+      {loggedIn && (
+        <>
+          {/* Pionowy divider oddzielający formatowanie od dyktowania. */}
+          <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+          <DictateButton editor={editor} />
+        </>
+      )}
     </div>
   );
 }

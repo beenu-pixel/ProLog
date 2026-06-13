@@ -5,7 +5,10 @@ import { ApiError } from "@/lib/api-error";
 import { buildJournalContext } from "@/lib/therapist-context";
 import { FREUD } from "@/lib/therapists";
 import { askXai, XaiError, type ChatMessage } from "@/lib/xai";
+import { logAiUsage } from "@/lib/services/ai-usage";
 import { formatWeekday } from "@/lib/format";
+
+const MODEL = "grok-4.3";
 
 // Serwis agenta — pytanie do cyfrowego terapeuty (Freud) nad dziennikiem.
 // Jedna implementacja używana przez REST (/api/v1/agent) i przez narzędzie MCP.
@@ -97,7 +100,16 @@ export async function askAgent(
 
   let answer: string;
   try {
-    answer = await askXai(messages);
+    const result = await askXai(messages);
+    answer = result.content;
+    // Log zużycia AI per użytkownik (best-effort, w tle). E-mail doczyta helper.
+    logAiUsage({
+      userId,
+      endpoint: "api_agent",
+      model: MODEL,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+    });
   } catch (err) {
     const status = err instanceof XaiError ? err.status : 502;
     const message = err instanceof XaiError ? err.message : "Błąd usługi agenta.";

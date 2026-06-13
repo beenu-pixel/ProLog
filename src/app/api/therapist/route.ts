@@ -1,8 +1,13 @@
 import { getTherapist } from "@/lib/therapists";
+import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
+import { logAiUsage } from "@/lib/services/ai-usage";
 
 // Strumieniowa rozmowa z cyfrowym terapeutą przez xAI (Grok 4.1 Fast). Klucz
 // (XAI_API_KEY) jest zmienną SERWEROWĄ — nigdy nie trafia do przeglądarki,
 // dlatego całe wywołanie xAI dzieje się tutaj.
+//
+// Dostęp tylko dla zalogowanych (weryfikacja sesji Supabase) — funkcja AI zużywa
+// kredyty właściciela, więc każde wywołanie musi być przypisane do konta.
 //
 // API xAI jest zgodne z OpenAI (`/v1/chat/completions`), więc nie potrzebujemy
 // SDK — wystarczy `fetch`. Żądanie układamy warstwowo pod automatyczny cache
@@ -30,6 +35,9 @@ interface TherapistRequest {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const auth = await authenticateUser(request);
+  if (isUserAuthError(auth)) return auth;
+
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
     return Response.json(
@@ -110,11 +118,14 @@ export async function POST(request: Request): Promise<Response> {
   // Pełna odpowiedź (bez streamingu). `content` to widoczna treść; ewentualne
   // `reasoning_content` ignorujemy (tok myślenia pozostaje ukryty).
   let content = "";
+  let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
   try {
     const data = (await upstream.json()) as {
       choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     content = data.choices?.[0]?.message?.content ?? "";
+    usage = data.usage;
   } catch {
     content = "";
   }
@@ -122,6 +133,16 @@ export async function POST(request: Request): Promise<Response> {
   if (!content) {
     return Response.json({ error: "Pusta odpowiedź modelu." }, { status: 502 });
   }
+
+  // Log zużycia AI per użytkownik (best-effort, w tle).
+  logAiUsage({
+    userId: auth.userId,
+    email: auth.email,
+    endpoint: "therapist",
+    model: MODEL,
+    inputTokens: usage?.prompt_tokens ?? null,
+    outputTokens: usage?.completion_tokens ?? null,
+  });
 
   // Efekt „pisania" odtwarzany lokalnie: mamy już całą treść, więc wysyłamy ją do
   // przeglądarki w drobnych porcjach (słowo po słowie) z małym opóźnieniem. Ruch

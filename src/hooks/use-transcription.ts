@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { playSound } from "@/lib/sound";
+import { getAccessToken } from "@/lib/auth";
 
 // --- Transkrypcja głosu (Groq Whisper) ------------------------------------
 // Zamiast Web Speech API (zob. `use-dictation.ts`) nagrywamy audio przez
@@ -79,9 +80,15 @@ export function useTranscription(
   const transcribe = async (blob: Blob) => {
     setTranscribing(true);
     try {
+      const token = await getAccessToken();
+      if (!token) return; // transkrypcja tylko dla zalogowanych
       const form = new FormData();
       form.append("file", blob, "audio.webm");
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
       if (!res.ok) return;
       const data = (await res.json()) as { text?: string };
       const text = data.text?.trim();

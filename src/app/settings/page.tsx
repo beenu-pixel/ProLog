@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useSoundEnabled } from "@/lib/settings";
@@ -10,8 +12,9 @@ import {
 } from "@/lib/therapist-prefs";
 import { clearHistory } from "@/lib/therapist-chat-store";
 import { DEFAULT_THERAPIST } from "@/lib/therapists";
-import { useSession, signInWithGoogle, signOut } from "@/lib/auth";
+import { useSession, signOut } from "@/lib/auth";
 import { ApiTokenManager } from "@/components/api-token-manager";
+import { UsageDashboard } from "@/components/usage-dashboard";
 import { PageScroll } from "@/components/page-scroll";
 import { cn } from "@/lib/utils";
 
@@ -116,16 +119,18 @@ export default function SettingsPage() {
               Wyloguj
             </Button>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => signInWithGoogle()}
-            >
-              Zaloguj przez Google
+            <Button asChild variant="outline" size="sm">
+              <Link href="/welcome">Zaloguj się</Link>
             </Button>
           )}
         </div>
       </section>
+
+      {/* Sekcje powiązane z AI/kluczami — wyłącznie dla zalogowanych. Niezalogowany
+          nie ma widzieć, że transkrypcja, terapeuta i klucze API w ogóle istnieją. */}
+      {session && (
+        <>
+      <UsageDashboard />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
@@ -207,6 +212,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+        </>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bot, Loader2, Mic, NotebookPen, SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth";
 import { NavMenu } from "@/components/nav-menu";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useEntries } from "@/hooks/use-entries";
@@ -63,7 +64,14 @@ export function ComposerInput() {
   const entries = useEntries();
   const active = useActiveContext();
   const { status, open } = useTherapistChat();
-  const [enabled] = useTherapistEnabled();
+  const [enabledPref] = useTherapistEnabled();
+  const session = useSession();
+
+  // Funkcje AI (czat z Freudem, mikrofon) wyłącznie dla zalogowanych — i tylko
+  // gdy rozmowa jest włączona w preferencjach. Niezalogowany nie widzi tych akcji
+  // (pole służy mu wyłącznie do notatki → „Zapisz jako wpis").
+  const loggedIn = Boolean(session);
+  const enabled = enabledPref && loggedIn;
 
   // Panel trzymamy zamontowany przez czas animacji wyjścia: gdy `open` schodzi
   // do false, najpierw odtwarzamy animację (`closing`), a dopiero po niej
@@ -168,21 +176,23 @@ export function ComposerInput() {
         {/* Mobile: hamburger → menu nawigacji (zastępuje dawną ikonę AI). */}
         <NavMenu className="lg:hidden" />
 
-        {/* Desktop: szybkie otwarcie/zamknięcie rozmowy z Freudem. */}
-        <button
-          type="button"
-          onClick={() => enabled && toggleOpen()}
-          disabled={!enabled}
-          aria-label="Rozmowa z terapeutą"
-          aria-pressed={open}
-          className={cn(
-            "hidden size-9 shrink-0 items-center justify-center rounded-full transition-colors lg:flex",
-            open ? "text-primary" : "text-muted-foreground hover:text-foreground",
-            !enabled && "cursor-not-allowed opacity-50"
-          )}
-        >
-          <Bot className="size-5" />
-        </button>
+        {/* Desktop: szybkie otwarcie/zamknięcie rozmowy z Freudem (tylko zalogowani). */}
+        {loggedIn && (
+          <button
+            type="button"
+            onClick={() => enabled && toggleOpen()}
+            disabled={!enabled}
+            aria-label="Rozmowa z terapeutą"
+            aria-pressed={open}
+            className={cn(
+              "hidden size-9 shrink-0 items-center justify-center rounded-full transition-colors lg:flex",
+              open ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              !enabled && "cursor-not-allowed opacity-50"
+            )}
+          >
+            <Bot className="size-5" />
+          </button>
+        )}
 
         <textarea
           ref={textareaRef}
@@ -219,22 +229,24 @@ export function ComposerInput() {
               <NotebookPen className="size-5" />
             </button>
 
-            {/* Wyślij do Freuda — aktywne tylko, gdy rozmowa włączona. */}
-            <button
-              type="submit"
-              disabled={!canSendToFreud}
-              aria-label="Wyślij do Zygmunta Freuda"
-              title="Wyślij do Zygmunta Freuda"
-              className={cn(
-                "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
-                !canSendToFreud &&
-                  "cursor-not-allowed opacity-50 hover:scale-100"
-              )}
-            >
-              <SendHorizontal className="size-5" />
-            </button>
+            {/* Wyślij do Freuda — tylko dla zalogowanych; aktywne, gdy rozmowa włączona. */}
+            {loggedIn && (
+              <button
+                type="submit"
+                disabled={!canSendToFreud}
+                aria-label="Wyślij do Zygmunta Freuda"
+                title="Wyślij do Zygmunta Freuda"
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
+                  !canSendToFreud &&
+                    "cursor-not-allowed opacity-50 hover:scale-100"
+                )}
+              >
+                <SendHorizontal className="size-5" />
+              </button>
+            )}
           </>
-        ) : (
+        ) : loggedIn ? (
           <button
             type="button"
             onClick={toggle}
@@ -272,7 +284,7 @@ export function ComposerInput() {
               <Mic className={cn("size-5", listening && "animate-pulse")} />
             )}
           </button>
-        )}
+        ) : null}
         </form>
       </div>
     </div>

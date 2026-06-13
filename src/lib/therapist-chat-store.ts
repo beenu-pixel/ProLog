@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { DEFAULT_THERAPIST } from "@/lib/therapists";
+import { getAccessToken } from "@/lib/auth";
 import {
   type ChatMessage,
   loadHistory,
@@ -110,9 +111,14 @@ export async function sendMessage(
   emit();
 
   try {
+    const token = await getAccessToken();
+    if (!token) throw new Error("not authenticated"); // czat tylko dla zalogowanych
     const res = await fetch("/api/therapist", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         therapistId: DEFAULT_THERAPIST.id,
         messages: history,

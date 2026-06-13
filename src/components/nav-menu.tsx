@@ -9,23 +9,19 @@ import {
   X,
   NotebookText,
   BarChart3,
-  Plus,
   Settings,
   FileText,
-  Bot,
   type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { playSound } from "@/lib/sound";
-import { toggleOpen, useTherapistChat } from "@/lib/therapist-chat-store";
-import { useTherapistEnabled } from "@/lib/therapist-prefs";
 
 /**
  * Hamburger + menu nawigacji wysuwane w GÓRĘ nad dolnym paskiem. Zastępuje dawny
  * rząd ikon pod polem oraz ikonę AI po lewej w kompozytorze — całą nawigację
- * (Dziennik, Statystyki, Nowy wpis, Ustawienia, Dokumentacja) chowamy tu pod
- * jedną ikoną, a rozmowę z Freudem otwieramy osobną pozycją.
+ * (Dziennik, Statystyki, Ustawienia, Dokumentacja) chowamy tu pod jedną ikoną.
+ * Rozmowa z Freudem nie jest pozycją menu — jest dostępna z dolnego paska
+ * (przyciski) po zalogowaniu.
  *
  * Komponent jest samowystarczalny (własny stan, backdrop, animacja). Renderujemy
  * go na mobile: w kompozytorze (lewy przycisk) oraz na trasach „tylko nawigacja".
@@ -36,7 +32,6 @@ interface MenuItem {
   label: string;
   icon: LucideIcon;
   isActive: (pathname: string) => boolean;
-  sound?: boolean;
 }
 
 const ITEMS: MenuItem[] = [
@@ -51,13 +46,6 @@ const ITEMS: MenuItem[] = [
     label: "Statystyki",
     icon: BarChart3,
     isActive: (p) => p.startsWith("/stats"),
-  },
-  {
-    href: "/new",
-    label: "Nowy wpis",
-    icon: Plus,
-    isActive: (p) => p === "/new",
-    sound: true,
   },
   {
     href: "/settings",
@@ -75,8 +63,6 @@ const ITEMS: MenuItem[] = [
 
 export function NavMenu({ className }: { className?: string }) {
   const pathname = usePathname();
-  const { open: freudOpen } = useTherapistChat();
-  const [enabled] = useTherapistEnabled();
 
   const [open, setOpen] = useState(false);
   // Panel trzymamy zamontowany na czas animacji wyjścia (jak TherapistChat).
@@ -179,10 +165,7 @@ export function NavMenu({ className }: { className?: string }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => {
-                        if (item.sound) playSound("entry-new");
-                        setOpen(false);
-                      }}
+                      onClick={() => setOpen(false)}
                       className={itemClass(active)}
                     >
                       <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
@@ -190,21 +173,6 @@ export function NavMenu({ className }: { className?: string }) {
                     </Link>
                   );
                 })}
-
-                {/* Rozmowa z Freudem — dawniej ikona AI; gdy włączona. */}
-                {enabled && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toggleOpen();
-                      setOpen(false);
-                    }}
-                    className={itemClass(freudOpen)}
-                  >
-                    <Bot className="size-5" />
-                    Rozmowa z Freudem
-                  </button>
-                )}
               </nav>
             </div>
           </div>

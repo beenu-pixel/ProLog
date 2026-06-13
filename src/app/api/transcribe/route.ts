@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
+import { logAiUsage } from "@/lib/services/ai-usage";
+
 // Transkrypcja audio przez Groq (model Whisper large-v3-turbo). Klucz API
 // (GROQ_API_KEY) jest zmienną SERWEROWĄ — nigdy nie trafia do przeglądarki,
 // dlatego całe wywołanie Groq dzieje się tutaj, po stronie serwera.
+//
+// Dostęp tylko dla zalogowanych (weryfikacja sesji Supabase) — funkcja AI zużywa
+// kredyty właściciela, więc każde wywołanie musi być przypisane do konta.
 //
 // API Groq jest zgodne z OpenAI (`/openai/v1/audio/transcriptions`), więc nie
 // potrzebujemy dodatkowego SDK — wystarczy `fetch` i przekazanie pliku dalej.
@@ -11,6 +17,9 @@ const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODEL = "whisper-large-v3-turbo";
 
 export async function POST(request: Request): Promise<Response> {
+  const auth = await authenticateUser(request);
+  if (isUserAuthError(auth)) return auth;
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -58,6 +67,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const data = (await res.json()) as { text?: string };
+    // Whisper nie zwraca liczby tokenów — logujemy samo wywołanie (atrybucja konta).
+    logAiUsage({ userId: auth.userId, email: auth.email, endpoint: "transcribe", model: MODEL });
     return NextResponse.json({ text: data.text ?? "" });
   } catch {
     return NextResponse.json(
