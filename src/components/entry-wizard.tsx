@@ -38,6 +38,7 @@ export function EntryWizard() {
   useEffect(() => {
     const draft = takeDraft();
     if (draft) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- jednorazowe wciągnięcie wersji roboczej z sessionStorage (niedostępnej podczas renderu SSR)
       setContent(draft);
       setTitle(deriveTitle(draft));
     }
