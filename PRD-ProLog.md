@@ -275,8 +275,9 @@ kilka udogodnień przeglądania.
   dla całej aplikacji.
 
 ### 7.3 Nowe ekrany i udogodnienia
-- **Ekran Ustawień** (`/settings`) — konto (login/wylogowanie), dźwięki, a w Etapie 3
-  także preferencje AI i klucze API. (Aplikacja wyszła poza pierwotne „3 ekrany bez Ustawień”.)
+- **Ekran Ustawień** (`/settings`) — konto (login/wylogowanie), dźwięki, **animacje
+  interfejsu**, a w Etapie 3 także preferencje AI i klucze API. (Aplikacja wyszła poza
+  pierwotne „3 ekrany bez Ustawień”.)
 - **Ekran Statystyk** — przegląd nastroju/aktywności w czasie (nawigacja po miesiącach).
 - **Wyszukiwarka** wpisów + **seed** przykładowych danych + **formatowanie dat** (testy Vitest).
 - **Desktop master-detail** — dwupanelowy układ listy i szczegółu na szerokich ekranach.
@@ -286,6 +287,27 @@ kilka udogodnień przeglądania.
 ### 7.4 Zmiany w modelu danych
 - Wpis zyskał ustrukturyzowane **metryki** (skala nastroju/dnia) ponad proste pole 1–5.
 - W bazie każdy wiersz ma `user_id`; treść (`treść`) zapisywana jako HTML z edytora TipTap.
+
+### 7.5 Dopracowanie UX i animacje (interfejs)
+Warstwa szlifu spójna z zasadami stylu z Części I (Stoic: subtelność, brak krzykliwości):
+
+- **Animacje przełączania wpisów — czysty fade.** Treść wpisu (panel szczegółu na desktopie
+  oraz widok dnia na mobile po zmianie dnia na pasku) pojawia się łagodnym przenikaniem,
+  bez ruchu/„skoku” w pionie (`key` + `animate-in fade-in`).
+- **Menu nawigacji — animacja w stylu macOS (Scale).** Panel `NavMenu` wyrasta z narożnika
+  przycisku i zwija się do niego (skala z lekkim odbiciem, `transform-origin` po stronie
+  przycisku) zamiast wjazdu od dołu.
+- **Pływający przycisk menu po prawej** na stronach „tylko nawigacja” (`/settings`, `/docs`)
+  — w naturalnym zasięgu kciuka przy obsłudze jedną ręką.
+- **Pasek dni (mobile) — zawsze do 7 dni naraz.** Okno przewijania ograniczone do dokładnie
+  7 kafelków i wyśrodkowane; na szerszym tablecie nie rozciąga się (spójna koncepcja „tygodnia”),
+  na węższym telefonie mieści mniej, a starsze dni odsłania przewijanie (historia 30 dni wstecz).
+- **Wykluczanie paneli (mobile): menu ↔ rozmowa z Freudem.** Otwarte jest tylko jedno z nich
+  (nie zasłaniają się nawzajem ani wpisywanego tekstu). Po zamknięciu menu rozmowa wraca
+  automatycznie, jeśli była otwarta (koordynacja w `nav-menu-store`).
+- **Globalny przełącznik „Animacje interfejsu”** (Ustawienia, `motion.ts`) — wyłącza animacje
+  i przejścia CSS oraz crossfade motywu (klasa `no-anim` na `<html>`); niezależnie od tego
+  aplikacja respektuje systemowe `prefers-reduced-motion`.
 
 ---
 
@@ -396,5 +418,8 @@ zużycia.
 | 2026-06-12  | Mobilna nawigacja w hamburgerze + poprawka strzałki miesiąca w Statystykach.            | 2    |
 | 2026-06-13  | Dokumentacja MCP: przykłady request/response dla każdego narzędzia.                     | 3    |
 | 2026-06-13  | Gating funkcji AI za logowaniem + ukrycie UI AI + log/panel zużycia (`ai_usage`).       | 3    |
+| 2026-06-14  | UX/animacje: fade przełączania wpisów, menu w stylu macOS, przycisk menu po prawej.     | 1/2  |
+| 2026-06-14  | Pasek dni (mobile) ograniczony do 7 kafelków; wykluczanie paneli menu↔Freud + auto-powrót.| 2/3 |
+| 2026-06-14  | Ustawienia: przełącznik „Animacje interfejsu” (`no-anim`) + respekt `prefers-reduced-motion`.| 1/2 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
