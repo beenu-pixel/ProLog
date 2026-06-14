@@ -13,6 +13,7 @@ import { NavMenu } from "@/components/nav-menu";
  * Zachowanie wg trasy:
  * - `/welcome`, formularze (`/new`, `/…/edit`) → ukryty w całości,
  * - `/docs`, `/settings` → kompaktowa pastylka z samym hamburgerem (mobile;
+ *   wyrównana do prawej — w zasięgu kciuka przy obsłudze jedną ręką;
  *   na desktopie nic — nawigacja jest w nagłówku),
  * - pozostałe → kompozytor (pole + hamburger po lewej na mobile).
  */
@@ -26,9 +27,9 @@ export function BottomBar() {
   const navOnly = pathname === "/settings" || pathname.startsWith("/docs");
   if (navOnly) {
     return (
-      <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4 lg:hidden">
+      <div className="fixed inset-x-0 bottom-5 z-40 flex justify-end px-4 lg:hidden">
         <div className="flex items-center rounded-full border bg-background/85 px-2 py-1.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <NavMenu />
+          <NavMenu menuOrigin="right" />
         </div>
       </div>
     );

@@ -59,7 +59,12 @@ export function MobileDayView() {
         />
       </div>
 
-      <div className="flex flex-1 flex-col pt-4">
+      {/* `key={selectedKey}` remontuje treść przy zmianie dnia → prosty fade
+          (jak panel szczegółu na desktopie). Globalny wyłącznik animacji zeruje go. */}
+      <div
+        key={selectedKey}
+        className="flex flex-1 flex-col pt-4 duration-300 ease-out animate-in fade-in motion-reduce:animate-none"
+      >
         {!ready ? null : dayEntries.length > 0 ? (
           <div className="space-y-8">
             {dayEntries.map((entry) => (

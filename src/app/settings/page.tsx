@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useSoundEnabled } from "@/lib/settings";
+import { useAnimationsEnabled } from "@/lib/motion";
 import {
   useAutoSend,
   useTherapistConsent,
@@ -55,6 +56,8 @@ export default function SettingsPage() {
   const hydrated = useHydrated();
   const [soundEnabled, setSoundEnabled] = useSoundEnabled();
   const soundOn = hydrated && soundEnabled;
+  const [animationsEnabled, setAnimationsEnabled] = useAnimationsEnabled();
+  const animationsOn = hydrated ? animationsEnabled : true;
   const session = useSession();
 
   const [therapistEnabled, setTherapistEnabled] = useTherapistEnabled();
@@ -94,6 +97,26 @@ export default function SettingsPage() {
             checked={soundOn}
             onChange={setSoundEnabled}
             label="Efekty dźwiękowe"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Animacje
+        </h2>
+        <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Animacje interfejsu</p>
+            <p className="text-sm text-muted-foreground">
+              Płynne przejścia (pojawianie wpisów, rozwijanie menu, zmiana motywu).
+              Wyłącz, by interfejs reagował natychmiast.
+            </p>
+          </div>
+          <Toggle
+            checked={animationsOn}
+            onChange={setAnimationsEnabled}
+            label="Animacje interfejsu"
           />
         </div>
       </section>

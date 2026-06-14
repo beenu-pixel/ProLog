@@ -98,6 +98,12 @@ export function DayStrip({
   };
 
   return (
+    // Okno przewijania ograniczone do DOKŁADNIE 7 kafelków (7×w-14 + 6×gap-2.5
+    // ≈ 28.75rem) i wyśrodkowane. `max-width` z natury przycina szersze ekrany
+    // (tablet w pionie i poziomie pokaże 7), a na węższym telefonie pasek jest
+    // pełnej szerokości i mieści mniej — resztę odsłania wtedy przewijanie.
+    // Bez paddingu w poziomie na treści, by liczba widocznych kafelków była
+    // spójna niezależnie od pozycji przewijania (padding zaniżał/zawyżał liczbę).
     <div
       ref={scrollRef}
       onPointerDown={onPointerDown}
@@ -105,13 +111,9 @@ export function DayStrip({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onClickCapture={onClickCapture}
-      className="hide-native-scroll -mx-6 cursor-grab select-none overflow-x-auto active:cursor-grabbing"
+      className="hide-native-scroll mx-auto w-full max-w-[28.75rem] cursor-grab select-none overflow-x-auto active:cursor-grabbing"
     >
-      {/* `w-max` + padding na treści (nie na kontenerze scrolla): bez `w-max`
-          flex zostaje szeroki na kontener, kafelki się z niego wylewają, a prawy
-          padding ląduje na krawędzi boxa zamiast za ostatnim kafelkiem — przez co
-          „dziś" kleił się do krawędzi ekranu na końcu przewijania. */}
-      <div className="flex w-max gap-2.5 px-6">
+      <div className="flex w-max gap-2.5 px-1">
         {days.map((date) => {
           const key = dayKey(date);
           const has = (entriesByDay.get(key)?.length ?? 0) > 0;

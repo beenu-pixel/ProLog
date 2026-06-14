@@ -70,6 +70,11 @@ export function setOpen(value: boolean): void {
   emit();
 }
 
+/** Bieżący stan panelu (poza Reactem) — do koordynacji z menu nawigacji. */
+export function isOpen(): boolean {
+  return open;
+}
+
 export function toggleOpen(): void {
   setOpen(!open);
 }

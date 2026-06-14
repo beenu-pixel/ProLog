@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
 import { BottomBar } from "@/components/bottom-bar";
+import { useAnimationsEnabled } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,6 +24,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/entries") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/stats");
+
+  // Globalny wyłącznik animacji: klasa na <html> (obejmuje też portale, np. menu
+  // renderowane do <body>). CSS w globals.css zeruje wtedy animacje/przejścia.
+  const [animationsEnabled] = useAnimationsEnabled();
+  useEffect(() => {
+    document.documentElement.classList.toggle("no-anim", !animationsEnabled);
+  }, [animationsEnabled]);
 
   return (
     <div

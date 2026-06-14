@@ -107,6 +107,60 @@
   }
 }
 
+/* Menu nawigacji — wyrasta z rogu przycisku (efekt zbliżony do macOS „Scale”
+   przy minimalizowaniu okna): skala z lekkim sprężystym overshootem na wejściu,
+   a na wyjściu zwija się z powrotem do tego rogu. Narożnik (transform-origin)
+   ustala komponent (origin-bottom-right/left), zależnie od strony przycisku. */
+@keyframes nav-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes nav-menu-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+.nav-menu-in {
+  animation: nav-menu-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1); /* ease-out-back = odbicie */
+}
+.nav-menu-out {
+  animation: nav-menu-out 180ms cubic-bezier(0.4, 0, 1, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-menu-in,
+  .nav-menu-out {
+    animation: none;
+  }
+}
+
+/* Globalny wyłącznik animacji (Ustawienia → „Animacje interfejsu"). Klasę
+   `no-anim` nakłada AppShell na <html>. Zerujemy animacje i przejścia CSS oraz
+   crossfade motywu (View Transitions); elementy od razu lądują w stanie końcowym. */
+html.no-anim *,
+html.no-anim *::before,
+html.no-anim *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+html.no-anim::view-transition-group(*),
+html.no-anim::view-transition-old(*),
+html.no-anim::view-transition-new(*) {
+  animation: none !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

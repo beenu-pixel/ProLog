@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useNavMenu, closeMenu, toggleMenu } from "@/lib/nav-menu-store";
 
 /**
  * Hamburger + menu nawigacji wysuwane w GÓRĘ nad dolnym paskiem. Zastępuje dawny
@@ -61,11 +62,19 @@ const ITEMS: MenuItem[] = [
   },
 ];
 
-export function NavMenu({ className }: { className?: string }) {
+export function NavMenu({
+  className,
+  menuOrigin = "left",
+}: {
+  className?: string;
+  /** Narożnik, z którego panel „wyrasta" — pod pozycją przycisku. */
+  menuOrigin?: "left" | "right";
+}) {
   const pathname = usePathname();
 
-  const [open, setOpen] = useState(false);
-  // Panel trzymamy zamontowany na czas animacji wyjścia (jak TherapistChat).
+  // Stan otwarcia żyje w storze menu (koordynacja z panelem Freuda — wykluczanie
+  // i auto-powrót). Montaż/animacja wyjścia zostają lokalne, sterowane przez `open`.
+  const { open } = useNavMenu();
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   useEffect(() => {
@@ -83,13 +92,12 @@ export function NavMenu({ className }: { className?: string }) {
     }
   }, [open, mounted]);
 
-  // Zamknij po zmianie trasy oraz na Escape.
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- zamknięcie menu po nawigacji
-  useEffect(() => setOpen(false), [pathname]);
+  // Zamknij po zmianie trasy (nawigacja — bez przywracania Freuda) oraz na Escape.
+  useEffect(() => closeMenu({ resume: false }), [pathname]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeMenu();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -107,7 +115,7 @@ export function NavMenu({ className }: { className?: string }) {
     <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => toggleMenu()}
         aria-label="Menu nawigacji"
         aria-expanded={open}
         className={cn(
@@ -131,7 +139,7 @@ export function NavMenu({ className }: { className?: string }) {
             type="button"
             aria-hidden
             tabIndex={-1}
-            onClick={() => setOpen(false)}
+            onClick={() => closeMenu()}
             className="fixed inset-0 z-40 cursor-default bg-transparent"
           />
 
@@ -139,17 +147,16 @@ export function NavMenu({ className }: { className?: string }) {
           <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
             <div
               className={cn(
-                "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur ease-out supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",
-                closing
-                  ? "duration-200 animate-out fade-out slide-out-to-bottom-4"
-                  : "duration-300 animate-in fade-in slide-in-from-bottom-4"
+                "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",
+                menuOrigin === "right" ? "origin-bottom-right" : "origin-bottom-left",
+                closing ? "nav-menu-out" : "nav-menu-in"
               )}
             >
               <div className="flex items-center justify-between border-b px-4 py-2.5">
                 <p className="text-sm font-semibold">Menu</p>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => closeMenu()}
                   aria-label="Zamknij menu"
                   className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
@@ -165,7 +172,7 @@ export function NavMenu({ className }: { className?: string }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => closeMenu({ resume: false })}
                       className={itemClass(active)}
                     >
                       <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />

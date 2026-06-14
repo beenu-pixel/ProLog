@@ -7,6 +7,7 @@ import { Bot, Loader2, Mic, NotebookPen, SendHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
 import { NavMenu } from "@/components/nav-menu";
+import { closeMenu } from "@/lib/nav-menu-store";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useEntries } from "@/hooks/use-entries";
 import { useActiveContext } from "@/lib/active-context";
@@ -174,7 +175,7 @@ export function ComposerInput() {
           )}
         >
         {/* Mobile: hamburger → menu nawigacji (zastępuje dawną ikonę AI). */}
-        <NavMenu className="lg:hidden" />
+        <NavMenu className="lg:hidden" menuOrigin="left" />
 
         {/* Desktop: szybkie otwarcie/zamknięcie rozmowy z Freudem (tylko zalogowani). */}
         {loggedIn && (
@@ -199,7 +200,11 @@ export function ComposerInput() {
           rows={1}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          onFocus={() => enabled && setOpen(true)}
+          onFocus={() => {
+            // Wejście w pole = rozmowa: chowamy menu (bez planowania powrotu).
+            closeMenu({ resume: false });
+            if (enabled) setOpen(true);
+          }}
           onKeyDown={(event) => {
             // Enter wysyła do Freuda (gdy włączony), Shift+Enter = nowy wiersz.
             if (event.key === "Enter" && !event.shiftKey) {

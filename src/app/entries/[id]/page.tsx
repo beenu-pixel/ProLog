@@ -60,7 +60,10 @@ export default function EntryDetailPage() {
   }
 
   return (
-    <article className="w-full max-w-3xl space-y-6">
+    <article
+      key={entry.id}
+      className="w-full max-w-3xl space-y-6 duration-300 ease-out animate-in fade-in motion-reduce:animate-none"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
