@@ -3,6 +3,10 @@
 import { useSyncExternalStore } from "react";
 
 import { DEFAULT_THERAPIST } from "@/lib/therapists";
+import {
+  getActiveTherapistId,
+  setActiveTherapistId,
+} from "@/lib/active-therapist";
 import { getAccessToken } from "@/lib/auth";
 import {
   type ChatMessage,
@@ -28,6 +32,10 @@ let messages: ChatMessage[] = [];
 let status: Status = "idle";
 let open = false;
 let loaded = false;
+// Aktywna persona dla TEJ rozmowy. Inicjalizowana domyślną; przy pierwszym
+// otwarciu panelu i przy `selectTherapist` synchronizowana z `active-therapist`
+// (localStorage). Historia jest osobna per `therapistId`.
+let therapistId = DEFAULT_THERAPIST.id;
 
 const listeners = new Set<() => void>();
 
@@ -55,12 +63,39 @@ function updateAssistant(id: string, content: string): void {
 async function ensureLoaded(): Promise<void> {
   if (loaded) return;
   loaded = true;
-  const stored = await loadHistory(DEFAULT_THERAPIST.id);
+  // Zsynchronizuj wybraną personę z localStorage przy pierwszym otwarciu.
+  const persisted = getActiveTherapistId();
+  if (persisted !== therapistId) {
+    therapistId = persisted;
+    emit();
+  }
+  const stored = await loadHistory(therapistId);
   // Tylko gdy nic nie dopisano w międzyczasie (np. szybka pierwsza wiadomość).
   if (messages.length === 0 && stored.length > 0) {
     messages = stored;
     emit();
   }
+}
+
+/**
+ * Przełącza aktywną personę: zapisuje wybór (localStorage), czyści bieżącą
+ * rozmowę z pamięci i wczytuje historię nowej persony. Wołane z przełącznika w
+ * nagłówku czatu oraz z Ustawień.
+ */
+export async function selectTherapist(id: string): Promise<void> {
+  if (id === therapistId) return;
+  therapistId = id;
+  setActiveTherapistId(id); // utrwala wybór i odświeża nazwę w UI
+  messages = [];
+  status = "idle";
+  loaded = false;
+  emit();
+  await ensureLoaded();
+}
+
+/** Id aktywnej persony tej rozmowy (poza Reactem). */
+export function activeTherapistId(): string {
+  return therapistId;
 }
 
 export function setOpen(value: boolean): void {
@@ -101,7 +136,7 @@ export async function sendMessage(
   status = "streaming";
   open = true;
   emit();
-  persistMessage(DEFAULT_THERAPIST.id, userMessage);
+  persistMessage(therapistId, userMessage);
 
   // Historia do wysłania — przed dodaniem pustego dymka asystenta.
   const history = messages.map(({ role, content }) => ({ role, content }));
@@ -125,7 +160,7 @@ export async function sendMessage(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        therapistId: DEFAULT_THERAPIST.id,
+        therapistId,
         messages: history,
         journalContext,
         uiContext,
@@ -146,7 +181,7 @@ export async function sendMessage(
 
     const finalText = acc.trim();
     if (finalText) {
-      persistMessage(DEFAULT_THERAPIST.id, {
+      persistMessage(therapistId, {
         ...assistant,
         content: finalText,
       });
@@ -170,7 +205,7 @@ export function clearHistory(): void {
   messages = [];
   status = "idle";
   emit();
-  clearStored(DEFAULT_THERAPIST.id);
+  clearStored(therapistId);
 }
 
 function subscribe(listener: () => void): () => void {

@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 export function AppHeader() {
   const pathname = usePathname();
 
-  // Ekran powitalny ma własny układ — bez nagłówka aplikacji.
-  if (pathname === "/welcome") return null;
+  // Ekran powitalny i landing (`/`) mają własny układ — bez nagłówka aplikacji.
+  if (pathname === "/welcome" || pathname === "/") return null;
 
   const entriesActive =
     pathname === "/" || pathname.startsWith("/entries") || pathname === "/new";
@@ -20,9 +20,12 @@ export function AppHeader() {
   const settingsActive = pathname.startsWith("/settings");
   const docsActive = pathname.startsWith("/docs");
 
+  // Rezerwujemy szerokość pogrubionego tekstu w ukrytym pseudo-elemencie,
+  // dzięki czemu link nie zmienia szerokości przy aktywacji i nie przesuwa sąsiadów.
   const link = (active: boolean) =>
     cn(
-      "text-sm transition-colors",
+      "text-sm transition-colors text-center",
+      "before:invisible before:block before:h-0 before:overflow-hidden before:font-medium before:content-[attr(data-label)]",
       active
         ? "font-medium text-foreground"
         : "text-muted-foreground hover:text-foreground"
@@ -36,13 +39,13 @@ export function AppHeader() {
             ProLog
           </Link>
           <nav className="hidden items-center gap-5 lg:flex">
-            <Link href="/entries" className={link(entriesActive)}>
+            <Link href="/entries" data-label="Dziennik" className={link(entriesActive)}>
               Dziennik
             </Link>
-            <Link href="/stats" className={link(statsActive)}>
+            <Link href="/stats" data-label="Statystyki" className={link(statsActive)}>
               Statystyki
             </Link>
-            <Link href="/settings" className={link(settingsActive)}>
+            <Link href="/settings" data-label="Ustawienia" className={link(settingsActive)}>
               Ustawienia
             </Link>
           </nav>

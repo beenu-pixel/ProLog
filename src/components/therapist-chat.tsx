@@ -1,12 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import { Bot, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { CustomScroll } from "@/components/custom-scroll";
-import { DEFAULT_THERAPIST } from "@/lib/therapists";
+import { type Therapist } from "@/lib/therapists";
+import { useActiveTherapist } from "@/lib/active-therapist";
 import { setOpen, useTherapistChat } from "@/lib/therapist-chat-store";
+import { TherapistSwitcher } from "@/components/therapist-switcher";
 import { useTherapistConsent } from "@/lib/therapist-prefs";
 import type { ChatMessage } from "@/lib/therapist-store";
 
@@ -17,6 +19,7 @@ import type { ChatMessage } from "@/lib/therapist-store";
  */
 export function TherapistChat({ closing = false }: { closing?: boolean }) {
   const { messages, status } = useTherapistChat();
+  const active = useActiveTherapist();
   const [consent, setConsent] = useTherapistConsent();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -37,15 +40,17 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
     >
 
       <header className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Bot className="size-4" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">{DEFAULT_THERAPIST.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {DEFAULT_THERAPIST.title}
-            </p>
+        <div className="flex items-center">
+          {/* Mobile: przełącznik persony (rozwijana lista w nagłówku). */}
+          <TherapistSwitcher
+            variant="title"
+            placement="down"
+            className="lg:hidden"
+          />
+          {/* Desktop: tożsamość statyczna — przełącznik jest w pasku pola (pigułka). */}
+          <div className="hidden flex-col lg:flex">
+            <p className="text-sm font-semibold">{active.name}</p>
+            <p className="text-xs text-muted-foreground">{active.title}</p>
           </div>
         </div>
         <button
@@ -59,7 +64,7 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
       </header>
 
       {!consent ? (
-        <ConsentGate onAccept={() => setConsent(true)} />
+        <ConsentGate therapist={active} onAccept={() => setConsent(true)} />
       ) : (
         <CustomScroll
           innerRef={scrollRef}
@@ -72,7 +77,7 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
               message={{
                 id: "__greeting__",
                 role: "assistant",
-                content: DEFAULT_THERAPIST.greeting,
+                content: active.greeting,
                 createdAt: "",
               }}
             />
@@ -87,12 +92,18 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
 }
 
 /** Jednorazowa zgoda na wysyłanie wpisów do modelu AI. */
-function ConsentGate({ onAccept }: { onAccept: () => void }) {
+function ConsentGate({
+  therapist,
+  onAccept,
+}: {
+  therapist: Therapist;
+  onAccept: () => void;
+}) {
   return (
     <div className="space-y-3 px-4 py-5 text-sm">
       <p className="font-medium">Zanim zaczniemy rozmowę</p>
       <p className="text-muted-foreground">
-        Aby {DEFAULT_THERAPIST.name} mógł analizować Twój dziennik, treść Twoich
+        Aby {therapist.name} mógł analizować Twój dziennik, treść Twoich
         wpisów będzie wysyłana do modelu AI (xAI) w celu wygenerowania odpowiedzi.
         Rozmowy zapisujemy prywatnie — możesz je w każdej chwili wyczyścić w
         Ustawieniach.

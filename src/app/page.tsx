@@ -1,28 +1,24 @@
-"use client";
+import type { Metadata } from "next";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { LandingPage } from "@/components/landing/landing-page";
+import { SessionRedirect } from "@/components/landing/session-redirect";
 
-import { useSession } from "@/lib/auth";
-import { useHydrated } from "@/hooks/use-hydrated";
-import { hasSeenWelcome } from "@/lib/welcome";
+export const metadata: Metadata = {
+  title: "ProLog — stoicki dziennik z cyfrowym psychoterapeutą",
+  description:
+    "Zapisuj refleksje i rozmawiaj z AI, które zna kontekst Twoich wpisów. Dziennik nastroju w duchu stoicyzmu — zacznij za darmo.",
+};
 
 /**
- * Bramka wejścia. Logowanie jest nieobowiązkowe: zalogowany użytkownik lub ktoś,
- * kto już widział ekran powitalny (też po „Wejdź bez konta"), trafia od razu do
- * dziennika; pozostali na ekran powitalny. Decyzja po stronie klienta, bo zależy
- * od sesji i flagi w localStorage.
+ * Strona główna `/` — publiczny landing. Treść jest renderowana serwerowo
+ * (SEO), a `SessionRedirect` po stronie klienta przenosi zalogowanego
+ * użytkownika do dziennika.
  */
 export default function Home() {
-  const router = useRouter();
-  const ready = useHydrated();
-  const session = useSession();
-
-  useEffect(() => {
-    if (!ready) return;
-    if (session || hasSeenWelcome()) router.replace("/entries");
-    else router.replace("/welcome");
-  }, [ready, session, router]);
-
-  return null;
+  return (
+    <>
+      <SessionRedirect />
+      <LandingPage />
+    </>
+  );
 }

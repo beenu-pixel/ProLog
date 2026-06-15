@@ -20,8 +20,9 @@ import { NavMenu } from "@/components/nav-menu";
 export function BottomBar() {
   const pathname = usePathname();
 
+  // Landing (`/`), ekran powitalny i formularze mają własny układ — bez paska.
   const isForm = pathname === "/new" || pathname.endsWith("/edit");
-  if (isForm || pathname === "/welcome") return null;
+  if (isForm || pathname === "/welcome" || pathname === "/") return null;
 
   // Trasy „tylko nawigacja": bez pola/tworzenia wpisu — sam hamburger (mobile).
   const navOnly = pathname === "/settings" || pathname.startsWith("/docs");

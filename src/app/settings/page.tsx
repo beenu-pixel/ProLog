@@ -11,8 +11,9 @@ import {
   useTherapistConsent,
   useTherapistEnabled,
 } from "@/lib/therapist-prefs";
-import { clearHistory } from "@/lib/therapist-chat-store";
-import { DEFAULT_THERAPIST } from "@/lib/therapists";
+import { clearHistory, selectTherapist } from "@/lib/therapist-chat-store";
+import { THERAPISTS } from "@/lib/therapists";
+import { useActiveTherapist } from "@/lib/active-therapist";
 import { useSession, signOut } from "@/lib/auth";
 import { ApiTokenManager } from "@/components/api-token-manager";
 import { UsageDashboard } from "@/components/usage-dashboard";
@@ -60,6 +61,7 @@ export default function SettingsPage() {
   const animationsOn = hydrated ? animationsEnabled : true;
   const session = useSession();
 
+  const therapist = useActiveTherapist();
   const [therapistEnabled, setTherapistEnabled] = useTherapistEnabled();
   const [autoSend, setAutoSend] = useAutoSend();
   const [consent, setConsent] = useTherapistConsent();
@@ -172,14 +174,49 @@ export default function SettingsPage() {
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Terapeuta ({DEFAULT_THERAPIST.name})
+          Terapeuta ({therapist.name})
         </h2>
+
+        <div className="space-y-3 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Wybór persony</p>
+            <p className="text-sm text-muted-foreground">
+              Z kim chcesz rozmawiać. Każda persona ma osobny wątek rozmowy.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {THERAPISTS.map((t) => {
+              const isActive = hydrated && t.id === therapist.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => void selectTherapist(t.id)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors hover:bg-secondary",
+                    isActive && "border-foreground bg-secondary"
+                  )}
+                >
+                  <span className="min-w-0 leading-tight">
+                    <span className="block truncate text-sm font-medium">
+                      {t.name}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {t.title}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
           <div>
             <p className="text-sm font-medium">Rozmowa z terapeutą</p>
             <p className="text-sm text-muted-foreground">
-              Czat z {DEFAULT_THERAPIST.name} na podstawie Twoich wpisów,
+              Czat z {therapist.name} na podstawie Twoich wpisów,
               dostępny w dolnym pasku.
             </p>
           </div>

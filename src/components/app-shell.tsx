@@ -25,6 +25,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/settings") ||
     pathname.startsWith("/stats");
 
+  // Landing (`/`) ma własny pełny układ (nagłówek + stopkę) i nie korzysta z
+  // pływającego dolnego paska — nie rezerwujemy więc dołu na pasek.
+  const bare = pathname === "/";
+
   // Globalny wyłącznik animacji: klasa na <html> (obejmuje też portale, np. menu
   // renderowane do <body>). CSS w globals.css zeruje wtedy animacje/przejścia.
   const [animationsEnabled] = useAnimationsEnabled();
@@ -49,8 +53,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           przewijania trzymają klasyczny odstęp lg:pb-28. */}
       <main
         className={cn(
-          "flex w-full flex-1 flex-col pb-28",
-          locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : "lg:pb-28"
+          "flex w-full flex-1 flex-col",
+          bare ? "pb-0" : "pb-28",
+          locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : !bare && "lg:pb-28"
         )}
       >
         {children}

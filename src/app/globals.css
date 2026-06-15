@@ -161,6 +161,57 @@ html.no-anim::view-transition-new(*) {
   animation: none !important;
 }
 
+/* Landing (`/`) — wejściowe animacje sekcji: fade + delikatne uniesienie.
+   `landing-fade-up` gra od razu po załadowaniu (hero, nad zakładką), z kaskadą
+   przez `landing-delay-*`. `landing-reveal` startuje dopiero po dodaniu klasy
+   `is-visible` (IntersectionObserver w komponencie `Reveal`) — czyli przy
+   przewinięciu do sekcji. Oba warianty respektują `prefers-reduced-motion`,
+   a globalny wyłącznik `html.no-anim` (Ustawienia) zeruje czas trwania — wtedy
+   elementy od razu lądują w stanie końcowym (widoczne). */
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.landing-fade-up {
+  animation: landing-fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.landing-delay-1 {
+  animation-delay: 90ms;
+}
+.landing-delay-2 {
+  animation-delay: 180ms;
+}
+.landing-delay-3 {
+  animation-delay: 270ms;
+}
+.landing-reveal {
+  opacity: 0;
+}
+.landing-reveal.is-visible {
+  animation: landing-fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-fade-up,
+  .landing-reveal.is-visible {
+    animation: none;
+  }
+  .landing-reveal {
+    opacity: 1;
+  }
+}
+/* Globalny wyłącznik animacji nie tylko zeruje czas, ale musi też ujawnić
+   elementy `landing-reveal` (które bez animacji zostałyby na opacity:0). */
+html.no-anim .landing-reveal {
+  opacity: 1;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

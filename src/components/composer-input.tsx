@@ -11,6 +11,7 @@ import { closeMenu } from "@/lib/nav-menu-store";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useEntries } from "@/hooks/use-entries";
 import { useActiveContext } from "@/lib/active-context";
+import { useActiveTherapist } from "@/lib/active-therapist";
 import { buildJournalContext, buildUiContext } from "@/lib/therapist-context";
 import { setDraft } from "@/lib/entry-draft";
 import { playSound } from "@/lib/sound";
@@ -26,6 +27,7 @@ import {
   useTherapistEnabled,
 } from "@/lib/therapist-prefs";
 import { TherapistChat } from "@/components/therapist-chat";
+import { TherapistSwitcher } from "@/components/therapist-switcher";
 
 /** Zamienia zwykły tekst z pola na prosty HTML (akapity), zgodny z edytorem
  *  TipTap w kreatorze i widokiem szczegółu wpisu. Escape’ujemy znaki HTML. */
@@ -64,6 +66,7 @@ export function ComposerInput() {
 
   const entries = useEntries();
   const active = useActiveContext();
+  const therapist = useActiveTherapist();
   const { status, open } = useTherapistChat();
   const [enabledPref] = useTherapistEnabled();
   const session = useSession();
@@ -214,12 +217,22 @@ export function ComposerInput() {
           }}
           placeholder={
             enabled
-              ? "Napisz notatkę lub zapytaj Zygmunta Freuda…"
+              ? `Napisz notatkę lub zapytaj — ${therapist.name}…`
               : "Napisz notatkę…"
           }
           aria-label="Notatka lub wiadomość do terapeuty"
           className="hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground"
         />
+
+        {/* Desktop: wybór terapeuty jak selektor modelu w czacie AI (pigułka
+            otwierana w górę). Na mobile przełącznik jest w nagłówku panelu. */}
+        {enabled && (
+          <TherapistSwitcher
+            variant="pill"
+            placement="up"
+            className="hidden lg:block"
+          />
+        )}
 
         {hasText ? (
           <>
@@ -239,8 +252,8 @@ export function ComposerInput() {
               <button
                 type="submit"
                 disabled={!canSendToFreud}
-                aria-label="Wyślij do Zygmunta Freuda"
-                title="Wyślij do Zygmunta Freuda"
+                aria-label={`Wyślij do: ${therapist.name}`}
+                title={`Wyślij do: ${therapist.name}`}
                 className={cn(
                   "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
                   !canSendToFreud &&
