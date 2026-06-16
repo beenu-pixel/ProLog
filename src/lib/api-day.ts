@@ -93,3 +93,24 @@ export function dayRangeUtc(day: string): { startUtc: string; endUtc: string } {
 export function noonUtcForDay(day: string): string {
   return warsawWallToUtc(day, 12, 0).toISOString();
 }
+
+/**
+ * Granice UTC dla ostatnich `days` dni kalendarzowych Europe/Warsaw — dziś plus
+ * `days - 1` poprzednich dni: `startUtc <= created_at < endUtc`. Używane przez
+ * wyszukiwanie hybrydowe do dołączania kontekstu „ostatnich N dni". `days` jest
+ * przycinane do co najmniej 1.
+ */
+export function recentDaysRangeUtc(days = 7): { startUtc: string; endUtc: string } {
+  const span = Math.max(1, Math.floor(days));
+  const today = todayWarsaw();
+  const [y, m, d] = today.split("-").map(Number);
+  // Klucz dnia startu = dziś − (span − 1). Liczymy w południe UTC, by przeskok
+  // strefy o północy nie przesunął nas o dzień (wzorzec z `dayRangeUtc`).
+  const startDay = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(
+    new Date(Date.UTC(y, m - 1, d - (span - 1), 12, 0, 0))
+  );
+  return {
+    startUtc: warsawWallToUtc(startDay, 0, 0).toISOString(),
+    endUtc: dayRangeUtc(today).endUtc,
+  };
+}

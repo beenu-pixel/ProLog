@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidDayKey, todayWarsaw, noonUtcForDay, dayRangeUtc } from "@/lib/api-day";
 import { deriveTitle, rowToEntry, type EntryRow } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
+import { buildEmbeddingInput, embedText } from "@/lib/services/embeddings";
 import type { Entry, MetricKey } from "@/lib/types";
 
 // Serwis wpisów — jedna implementacja używana przez REST (/api/v1/entries)
@@ -80,7 +81,25 @@ export async function createEntry(
     throw new ApiError(500, "Nie udało się zapisać wpisu.");
   }
 
-  return rowToEntry(data as EntryRow);
+  const saved = data as EntryRow;
+
+  // Embedding (best-effort): nowy wpis dostaje wektor od razu. Błąd embeddingu
+  // (brak/nieczynny OPENAI_API_KEY itp.) NIE wywraca tworzenia wpisu — backfill
+  // dobierze brakujące wektory później.
+  try {
+    const vector = await embedText(buildEmbeddingInput(saved.title, saved.content));
+    const { error: embedError } = await supabaseAdmin!
+      .from("entries")
+      .update({ embedding: JSON.stringify(vector) })
+      .eq("id", saved.id);
+    if (embedError) {
+      console.error("[services/entries] embedding update failed:", embedError);
+    }
+  } catch (err) {
+    console.error("[services/entries] embedding failed:", err);
+  }
+
+  return rowToEntry(saved);
 }
 
 /**
