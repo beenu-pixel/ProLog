@@ -1,5 +1,6 @@
 import type { Entry, Scale } from "@/lib/types";
 import type { ActiveContext } from "@/lib/active-context";
+import type { SearchHit } from "@/lib/services/search";
 import { METRICS, metricLevelLabel } from "@/lib/metrics";
 import { dayKey, formatWeekday, toExcerpt } from "@/lib/format";
 
@@ -19,6 +20,27 @@ function metricsLine(entry: Entry): string {
     .join(", ");
 }
 
+/** Pojedynczy wpis jako blok tekstu dla modelu (nagłówek + metryki + treść). */
+function entryBlock(entry: Entry): string {
+  const header = `[${dayKey(entry.createdAt)}] ${formatWeekday(
+    entry.createdAt
+  )} — „${entry.title}"`;
+  const metrics = metricsLine(entry);
+  const body = toExcerpt(entry.content, 4000) || "(brak treści)";
+  const lines = [header];
+  if (metrics) lines.push(`Metryki: ${metrics}`);
+  lines.push(`Treść: ${body}`);
+  return lines.join("\n");
+}
+
+/** Wpisy posortowane od najstarszego do najnowszego (czytelny przebieg czasu). */
+function chronological(entries: Entry[]): Entry[] {
+  return [...entries].sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}
+
 /**
  * Pełny dziennik użytkownika jako tekst dla modelu, posortowany od najstarszego
  * do najnowszego (czytelny przebieg czasu dla analizy nastroju).
@@ -28,25 +50,32 @@ export function buildJournalContext(entries: Entry[]): string {
     return "KONTEKST DZIENNIKA: użytkownik nie ma jeszcze żadnych wpisów.";
   }
 
-  const ordered = [...entries].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-
-  const blocks = ordered.map((entry) => {
-    const header = `[${dayKey(entry.createdAt)}] ${formatWeekday(
-      entry.createdAt
-    )} — „${entry.title}"`;
-    const metrics = metricsLine(entry);
-    const body = toExcerpt(entry.content, 4000) || "(brak treści)";
-    const lines = [header];
-    if (metrics) lines.push(`Metryki: ${metrics}`);
-    lines.push(`Treść: ${body}`);
-    return lines.join("\n");
-  });
+  const blocks = chronological(entries).map(entryBlock);
 
   return (
     "KONTEKST DZIENNIKA (wszystkie wpisy użytkownika, od najstarszego do najnowszego; metryki w skali 1–5):\n\n" +
+    blocks.join("\n---\n")
+  );
+}
+
+/**
+ * Kontekst dziennika zbudowany z wyników wyszukiwania hybrydowego (RAG): WYBRANY
+ * podzbiór — najtrafniejsze dla pytania wpisy + wszystkie z ostatnich dni — a NIE
+ * cały dziennik. Intro mówi o tym wprost, by model nie zakładał kompletności i nie
+ * zmyślał brakujących wpisów. Wpisy sortujemy chronologicznie (jak `buildJournalContext`).
+ */
+export function buildJournalContextFromHits(hits: SearchHit[]): string {
+  if (hits.length === 0) {
+    return "KONTEKST DZIENNIKA: użytkownik nie ma jeszcze żadnych wpisów.";
+  }
+
+  const blocks = chronological(hits.map((h) => h.entry)).map(entryBlock);
+
+  return (
+    "KONTEKST DZIENNIKA (WYBRANE wpisy: najbardziej trafne dla pytania użytkownika " +
+    "oraz wszystkie z ostatnich dni — to NIE jest cały dziennik; metryki w skali 1–5). " +
+    "Jeśli pytanie dotyczy czegoś, czego tu nie ma, powiedz o tym wprost lub poproś o " +
+    "doprecyzowanie zamiast zgadywać:\n\n" +
     blocks.join("\n---\n")
   );
 }

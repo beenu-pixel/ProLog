@@ -2,10 +2,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidDayKey, todayWarsaw } from "@/lib/api-day";
 import { rowToEntry, type EntryRow } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
-import { buildJournalContext } from "@/lib/therapist-context";
+import { buildJournalContext, buildJournalContextFromHits } from "@/lib/therapist-context";
 import { FREUD } from "@/lib/therapists";
 import { askXai, XaiError, type ChatMessage } from "@/lib/xai";
 import { logAiUsage } from "@/lib/services/ai-usage";
+import { hybridSearch } from "@/lib/services/search";
 import { formatWeekday } from "@/lib/format";
 
 const MODEL = "grok-4.3";
@@ -65,17 +66,26 @@ export async function askAgent(
   const from = input.from as string | undefined;
   const to = input.to as string | undefined;
 
-  // Pełny dziennik użytkownika → kontekst dla modelu.
-  const { data: entryRows, error: entriesError } = await supabaseAdmin!
-    .from("entries")
-    .select("*")
-    .eq("user_id", userId);
-  if (entriesError) {
-    console.error("[services/agent] entries select failed:", entriesError);
-    throw new ApiError(500, "Nie udało się pobrać dziennika.");
+  // RAG: kontekst z wyszukiwania hybrydowego po treści pytania (najtrafniejsze
+  // wpisy + zawsze ostatnie 7 dni). Gdy wyszukiwanie/embedding padnie (np. brak
+  // OPENAI_API_KEY), degradujemy do pełnego dziennika — REST/MCP nie może paść.
+  let journalContext: string;
+  try {
+    const hits = await hybridSearch(userId, question, { recentDays: 7 });
+    journalContext = buildJournalContextFromHits(hits);
+  } catch (err) {
+    console.error("[services/agent] hybrid search failed — fallback to full journal:", err);
+    const { data: entryRows, error: entriesError } = await supabaseAdmin!
+      .from("entries")
+      .select("*")
+      .eq("user_id", userId);
+    if (entriesError) {
+      console.error("[services/agent] entries select failed:", entriesError);
+      throw new ApiError(500, "Nie udało się pobrać dziennika.");
+    }
+    const entries = (entryRows as EntryRow[]).map(rowToEntry);
+    journalContext = buildJournalContext(entries);
   }
-  const entries = (entryRows as EntryRow[]).map(rowToEntry);
-  const journalContext = buildJournalContext(entries);
 
   // Historia rozmowy z tego dnia (per dzień).
   const { data: historyRows } = await supabaseAdmin!
