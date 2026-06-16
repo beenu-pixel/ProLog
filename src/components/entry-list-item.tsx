@@ -17,9 +17,12 @@ import type { Entry } from "@/lib/types";
 export function EntryListItem({
   entry,
   active = false,
+  badge,
 }: {
   entry: Entry;
   active?: boolean;
+  /** Opcjonalna mała etykieta (np. „ostatnie 7 dni") — używana w trybie inteligentnego wyszukiwania. */
+  badge?: string;
 }) {
   const excerpt = toExcerpt(entry.content, 90);
 
@@ -38,9 +41,16 @@ export function EntryListItem({
         </span>
 
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-xs font-semibold uppercase tracking-wide">
-            {formatWeekday(entry.createdAt)}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide">
+              {formatWeekday(entry.createdAt)}
+            </p>
+            {badge && (
+              <span className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {badge}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {formatMonthYear(entry.createdAt)}
           </p>

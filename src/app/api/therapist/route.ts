@@ -1,6 +1,8 @@
 import { getTherapist } from "@/lib/therapists";
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
+import { hybridSearch } from "@/lib/services/search";
+import { buildJournalContextFromHits } from "@/lib/therapist-context";
 
 // Strumieniowa rozmowa z cyfrowym terapeutą przez xAI (Grok 4.1 Fast). Klucz
 // (XAI_API_KEY) jest zmienną SERWEROWĄ — nigdy nie trafia do przeglądarki,
@@ -59,8 +61,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const therapist = getTherapist(body.therapistId ?? "");
-  const journalContext = body.journalContext ?? "";
   const uiContext = body.uiContext ?? "";
+
+  // RAG: kontekst dziennika budujemy SERWEROWO z wyszukiwania hybrydowego po treści
+  // ostatniej wiadomości użytkownika (najtrafniejsze wpisy + zawsze ostatnie 7 dni).
+  // Gdy wyszukiwanie/embedding padnie (np. brak OPENAI_API_KEY), wracamy do pełnego
+  // kontekstu przysłanego przez klienta — czat działa jak dotąd (degradacja, nie awaria).
+  const lastUserText = history[history.length - 1]?.content ?? "";
+  let journalContext = body.journalContext ?? "";
+  if (lastUserText.trim()) {
+    try {
+      const hits = await hybridSearch(auth.userId, lastUserText, { recentDays: 7 });
+      journalContext = buildJournalContextFromHits(hits);
+    } catch (err) {
+      console.error("[therapist] hybrid search failed — fallback to client context:", err);
+    }
+  }
 
   // Warstwy: persona+few-shot (stałe) → dziennik (półstałe) jako wiadomości
   // `system` na początku (cache'owalny prefiks), potem historia. Świeży kontekst
