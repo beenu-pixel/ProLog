@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { playSound } from "@/lib/sound";
 import { getAccessToken } from "@/lib/auth";
+import { noteFromHeaders } from "@/hooks/use-ai-limits";
 
 // --- Transkrypcja głosu (Groq Whisper) ------------------------------------
 // Zamiast Web Speech API (zob. `use-dictation.ts`) nagrywamy audio przez
@@ -89,6 +90,7 @@ export function useTranscription(
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
+      noteFromHeaders("transcribe", res); // odśwież stan limitu (też przy 429)
       if (!res.ok) return;
       const data = (await res.json()) as { text?: string };
       const text = data.text?.trim();

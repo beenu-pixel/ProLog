@@ -1,8 +1,8 @@
 # PRD — ProLog
 
-**Wersja:** 3.1 (Etap 3 — warstwa AI + gating/rozliczalność)
-**Data:** 2026-06-14
-**Status:** Żywy dokument — Etap 1 (fundament) i Etap 2 (baza + logowanie) zrealizowane; Etap 3 (AI) zrealizowany, łącznie z zamknięciem funkcji AI za logowaniem i logiem zużycia
+**Wersja:** 3.2 (Etap 4 — audyt i uszczelnienie bezpieczeństwa)
+**Data:** 2026-06-17
+**Status:** Żywy dokument — Etap 1 (fundament) i Etap 2 (baza + logowanie) zrealizowane; Etap 3 (AI) zrealizowany, łącznie z zamknięciem funkcji AI za logowaniem i logiem zużycia; Etap 4 (uszczelnienie bezpieczeństwa: sanityzacja XSS, rate-limiting AI, hardening bazy) zrealizowany
 
 > **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
 > opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
@@ -28,8 +28,11 @@ Co już działa w aplikacji:
   dziennikiem przez **REST API** i **serwer MCP** (Personal Access Token), strona `/docs`.
 - **Bezpieczeństwo AI:** funkcje AI dostępne **tylko po zalogowaniu** (egzekwowane serwerowo),
   UI AI ukryte przed gościem, log zużycia (`ai_usage`) + panel rozliczalności dla właściciela.
+- **Uszczelnienie (Etap 4):** sanityzacja HTML wpisów (ochrona przed XSS), **rate-limiting**
+  funkcji AI z dziennym limitem widocznym w UI (ostrzeżenie + blokada), hardening bazy Supabase.
 
-Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3) i 9 (bezpieczeństwo i rozliczalność AI).
+Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3), 9 (bezpieczeństwo i rozliczalność AI)
+i 11 (uszczelnienie bezpieczeństwa).
 
 ---
 
@@ -399,6 +402,53 @@ zużycia.
   `PROLOG_ADMIN_EMAILS` (lista właścicieli widzących panel zużycia AI).
 - **Personal Access Token:** prefiks `plog_`, w bazie tylko hash SHA-256 (`api_tokens`).
 - **Log zużycia AI:** tabela `ai_usage`; funkcje AI egzekwowane serwerowo (`user-auth.ts`).
+- **Rate-limiting AI:** tabela `rate_limit_hits` (RLS bez polityk — dostęp tylko kluczem
+  sekretnym); serwis `src/lib/services/rate-limit.ts`; sanityzacja HTML w `src/lib/sanitize.ts`
+  (zależność `isomorphic-dompurify`).
+
+---
+
+## 11. Etap 4 — Audyt i uszczelnienie bezpieczeństwa (zrealizowane)
+
+Cel etapu: po przeglądzie pod kątem najpopularniejszych ataków webowych (OWASP) domknąć
+luki aplikacyjne. Audyt potwierdził, że **rdzeń jest solidny**: RLS (`auth.uid() = user_id`)
+na wszystkich tabelach, prywatny bucket `entry-photos` z izolacją per-folder
+(`(storage.foldername(name))[1] = auth.uid()`), brak IDOR (serwisy serwerowe filtrują po
+`user_id` z tokenu/sesji), brak SQL injection (parametryzowane zapytania + RPC), sekrety
+wyłącznie po stronie serwera. Uzupełniono trzy obszary.
+
+### 11.1 Sanityzacja treści wpisów (ochrona przed XSS)
+- Treść wpisu (HTML z edytora TipTap) jest renderowana przez `dangerouslySetInnerHTML`
+  i może trafić do bazy przez REST/MCP `create_entry` (pole `content` przyjmuje dowolny
+  markup) — bez czyszczenia byłby to wektor **stored XSS** (np. `<img src=x onerror=…>`).
+- **`src/lib/sanitize.ts`** (`sanitizeEntryHtml`, `isomorphic-dompurify`) czyści HTML
+  whitelistą tagów zgodną z wyjściem TipTap; usuwa skrypty, atrybuty `on*`, `style`, `iframe`.
+- Wpięta **dwuwarstwowo**: przy renderze (szczegół wpisu, mobilny widok dnia — pokrywa
+  każde źródło odczytu) oraz na zapisie w `createEntry` (defense in depth). Testy: `sanitize.test.ts`.
+
+### 11.2 Rate-limiting funkcji AI (sufit kosztowy + limit dzienny w UI)
+- Problem: zalogowany użytkownik mógł w pętli wywoływać funkcje AI i przepalać kredyty
+  xAI/OpenAI/Groq. Wprowadzono limit **per użytkownik** oparty o bazę (`rate_limit_hits`,
+  model „jeden wiersz = jedno żądanie”, sprzątanie starych wpisów).
+- **Dwa okna:** cichy limit **na minutę** (bezpiecznik anty-pętla) oraz limit **dzienny**
+  (dzień kalendarzowy Europe/Warsaw, **reset o północy**) — to on jest pokazywany w UI.
+- **Limity** (zawór bezpieczeństwa, nie quota produktowa — kilkukrotnie powyżej realnego
+  użycia): persony (terapeuta + agent API) **60/dzień**, transkrypcja **200/dzień**,
+  wyszukiwanie **300/dzień**.
+- Wpięte w `/api/transcribe`, `/api/therapist`, `/api/search`, `/api/v1/agent` — z nagłówkami
+  `X-RateLimit-*` i odpowiedzią `429` (`scope` + `resetAt`). Status dla UI: **`GET /api/limits`**.
+- **UI ostrzega i blokuje** (`src/hooks/use-ai-limits.ts`): przy zużyciu **80%** pojawia się
+  dyskretne „zostało X”, a po wyczerpaniu elementy wywołujące AI (mikrofon, wysyłka do
+  terapeuty, przełącznik inteligentnego wyszukiwania) stają się **nieaktywne** z komunikatem
+  „odnowi się o północy”. Limit jest **wspólny dla wszystkich person** (zmiana persony nie
+  resetuje licznika).
+
+### 11.3 Hardening bazy Supabase
+- Funkcje SQL `hybrid_search` i `immutable_unaccent` dostały **stały `search_path`**
+  (`ALTER FUNCTION … SET search_path`) — usuwa ostrzeżenie audytu `function_search_path_mutable`,
+  nie ruszając ciała funkcji ani generowanej kolumny `entries.fts`.
+- **Do włączenia w panelu** (konfiguracja Auth, nie kod): ochrona przed wyciekłymi hasłami
+  (HaveIBeenPwned) — domyka ostatnie ostrzeżenie audytu.
 
 ---
 
@@ -421,5 +471,8 @@ zużycia.
 | 2026-06-14  | UX/animacje: fade przełączania wpisów, menu w stylu macOS, przycisk menu po prawej.     | 1/2  |
 | 2026-06-14  | Pasek dni (mobile) ograniczony do 7 kafelków; wykluczanie paneli menu↔Freud + auto-powrót.| 2/3 |
 | 2026-06-14  | Ustawienia: przełącznik „Animacje interfejsu” (`no-anim`) + respekt `prefers-reduced-motion`.| 1/2 |
+| 2026-06-17  | Sanityzacja HTML wpisów (DOMPurify) przy renderze i na zapisie — ochrona przed stored XSS. | 4 |
+| 2026-06-17  | Rate-limiting funkcji AI (`rate_limit_hits`): limit dzienny (reset o północy) + UI ostrzega 80% i blokuje po wyczerpaniu; `/api/limits`. | 4 |
+| 2026-06-17  | Hardening bazy: stały `search_path` w funkcjach `hybrid_search`/`immutable_unaccent` (audyt Supabase). | 4 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).

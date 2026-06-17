@@ -3,6 +3,7 @@ import { isValidDayKey, todayWarsaw, noonUtcForDay, dayRangeUtc } from "@/lib/ap
 import { deriveTitle, rowToEntry, type EntryRow } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
 import { buildEmbeddingInput, embedText } from "@/lib/services/embeddings";
+import { sanitizeEntryHtml } from "@/lib/sanitize";
 import type { Entry, MetricKey } from "@/lib/types";
 
 // Serwis wpisów — jedna implementacja używana przez REST (/api/v1/entries)
@@ -36,10 +37,13 @@ export async function createEntry(
   userId: string,
   input: Record<string, unknown>
 ): Promise<Entry> {
-  const content = input.content;
-  if (typeof content !== "string" || content.trim() === "") {
+  const rawContent = input.content;
+  if (typeof rawContent !== "string" || rawContent.trim() === "") {
     throw new ApiError(400, "Pole `content` jest wymagane (niepusty tekst).");
   }
+  // Treść może zawierać HTML (REST/MCP przyjmują dowolny markup) i jest renderowana
+  // przez `dangerouslySetInnerHTML` — czyścimy ją tu, na granicy zapisu (defense in depth).
+  const content = sanitizeEntryHtml(rawContent);
 
   // Dzień: domyślnie dziś (PL); walidacja formatu, gdy podany.
   let day = todayWarsaw();

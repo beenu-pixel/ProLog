@@ -9,6 +9,7 @@ import { useSession } from "@/lib/auth";
 import { NavMenu } from "@/components/nav-menu";
 import { closeMenu } from "@/lib/nav-menu-store";
 import { useTranscription } from "@/hooks/use-transcription";
+import { useAiLimit } from "@/hooks/use-ai-limits";
 import { useEntries } from "@/hooks/use-entries";
 import { useActiveContext } from "@/lib/active-context";
 import { useActiveTherapist } from "@/lib/active-therapist";
@@ -70,6 +71,8 @@ export function ComposerInput() {
   const { status, open } = useTherapistChat();
   const [enabledPref] = useTherapistEnabled();
   const session = useSession();
+  const therapistLimit = useAiLimit("therapist");
+  const transcribeLimit = useAiLimit("transcribe");
 
   // Funkcje AI (czat z Freudem, mikrofon) wyłącznie dla zalogowanych — i tylko
   // gdy rozmowa jest włączona w preferencjach. Niezalogowany nie widzi tych akcji
@@ -101,6 +104,7 @@ export function ComposerInput() {
   const submit = (value: string) => {
     const trimmed = value.trim();
     if (!enabled || !trimmed || status === "streaming") return;
+    if (therapistLimit.blocked) return; // dzienny limit wyczerpany (przycisk i tak wyłączony)
     if (!hasTherapistConsent()) {
       setOpen(true); // panel pokaże ekran zgody
       return;
@@ -131,7 +135,8 @@ export function ComposerInput() {
         isAutoSend() &&
         enabled &&
         hasTherapistConsent() &&
-        status !== "streaming"
+        status !== "streaming" &&
+        !therapistLimit.blocked
       ) {
         const journalContext = buildJournalContext(entries);
         const uiContext = buildUiContext(active, entries);
@@ -152,12 +157,24 @@ export function ComposerInput() {
   }, [text]);
 
   const hasText = text.trim().length > 0;
-  const canSendToFreud = enabled && status !== "streaming";
+  const canSendToFreud =
+    enabled && status !== "streaming" && !therapistLimit.blocked;
+  const micDisabled =
+    !supported || transcribing || (transcribeLimit.blocked && !listening);
 
   return (
     <div className="flex w-full flex-col gap-2">
       {/* Panel rozmowy z Freudem — osobny, pływa NAD paskiem. */}
       {enabled && mounted && <TherapistChat closing={closing} />}
+
+      {/* Ostrzeżenie o zbliżającym się / wyczerpanym dziennym limicie pytań. */}
+      {enabled && (therapistLimit.blocked || therapistLimit.nearLimit) && (
+        <p className="px-3 text-center text-xs text-muted-foreground">
+          {therapistLimit.blocked
+            ? "Wykorzystałeś dzienny limit pytań do terapeuty. Odnowi się o północy."
+            : `Zostało ${therapistLimit.remaining} pytań do terapeuty na dziś.`}
+        </p>
+      )}
 
       {/* Jeden, wspólny glass-panel: pole + (na mobile) nawigacja pod nim.
           Na desktopie panel jest przezroczysty — pole ma własną pastylkę. */}
@@ -253,7 +270,11 @@ export function ComposerInput() {
                 type="submit"
                 disabled={!canSendToFreud}
                 aria-label={`Wyślij do: ${therapist.name}`}
-                title={`Wyślij do: ${therapist.name}`}
+                title={
+                  therapistLimit.blocked
+                    ? "Dzienny limit pytań wykorzystany — odnowi się o północy"
+                    : `Wyślij do: ${therapist.name}`
+                }
                 className={cn(
                   "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
                   !canSendToFreud &&
@@ -268,7 +289,7 @@ export function ComposerInput() {
           <button
             type="button"
             onClick={toggle}
-            disabled={!supported || transcribing}
+            disabled={micDisabled}
             aria-pressed={listening}
             aria-busy={transcribing}
             aria-label={
@@ -279,21 +300,22 @@ export function ComposerInput() {
                   : "Nagraj głos"
             }
             title={
-              supported
-                ? transcribing
-                  ? "Transkrypcja…"
-                  : listening
-                    ? "Zatrzymaj nagrywanie"
-                    : "Nagraj notatkę głosem"
-                : "Nagrywanie nie jest wspierane w tej przeglądarce"
+              !supported
+                ? "Nagrywanie nie jest wspierane w tej przeglądarce"
+                : transcribeLimit.blocked && !listening
+                  ? "Dzienny limit transkrypcji wykorzystany — odnowi się o północy"
+                  : transcribing
+                    ? "Transkrypcja…"
+                    : listening
+                      ? "Zatrzymaj nagrywanie"
+                      : "Nagraj notatkę głosem"
             }
             className={cn(
               "flex size-11 shrink-0 items-center justify-center rounded-full transition-transform",
               listening
                 ? "bg-destructive text-white"
                 : "bg-primary text-primary-foreground hover:scale-105 active:scale-95",
-              (!supported || transcribing) &&
-                "cursor-not-allowed opacity-50 hover:scale-100"
+              micDisabled && "cursor-not-allowed opacity-50 hover:scale-100"
             )}
           >
             {transcribing ? (

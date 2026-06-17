@@ -8,6 +8,7 @@ import {
   setActiveTherapistId,
 } from "@/lib/active-therapist";
 import { getAccessToken } from "@/lib/auth";
+import { noteFromHeaders } from "@/hooks/use-ai-limits";
 import {
   type ChatMessage,
   loadHistory,
@@ -166,6 +167,14 @@ export async function sendMessage(
         uiContext,
       }),
     });
+    noteFromHeaders("therapist", res); // odśwież stan limitu (też przy 429)
+    if (res.status === 429) {
+      updateAssistant(
+        assistant.id,
+        "Wykorzystałeś dzienny limit pytań do terapeuty. Odnowi się o północy."
+      );
+      return;
+    }
     if (!res.ok || !res.body) throw new Error("bad response");
 
     const reader = res.body.getReader();
