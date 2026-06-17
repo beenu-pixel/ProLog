@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# wygenerowane zdjęcia źródłowe (trzymane lokalnie + w Supabase Storage, nie w repo)
+/images-gen/
+
 # local tooling (machine-specific paths)
 /.claude/
 

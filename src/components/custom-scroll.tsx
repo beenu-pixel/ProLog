@@ -112,7 +112,9 @@ export function CustomScroll({
     const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop;
     th.style.height = `${thumbH}px`;
     th.style.top = `${top}px`;
-  }, [scrollRef]);
+    // scrollRef/thumbRef to stabilne ref-y — celowo pusta lista zależności
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Realne przewijanie (kółko/trackpad/klawiatura): pokaż pasek i zaplanuj jego
   // schowanie chwilę po zatrzymaniu — chyba że kursor czeka przy krawędzi.

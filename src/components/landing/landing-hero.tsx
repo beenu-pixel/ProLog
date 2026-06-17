@@ -42,12 +42,10 @@ function hasWebGL(): boolean {
 export function LandingHero() {
   const [animationsEnabled] = useAnimationsEnabled();
   const reduced = useReducedMotion();
-  const [webgl, setWebgl] = useState(false);
+  const [webgl] = useState(() => hasWebGL());
   const [inView, setInView] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setWebgl(hasWebGL()), []);
 
   // Montujemy scenę dopiero, gdy hero jest w polu widzenia.
   useEffect(() => {
@@ -97,7 +95,7 @@ export function LandingHero() {
           </Button>
         </div>
         <p className="landing-fade-up landing-delay-3 mt-6 text-sm text-muted-foreground italic">
-          „Masz władzę nad swoim umysłem — nie nad światem zewnętrznym."
+          „Masz władzę nad swoim umysłem — nie nad światem zewnętrznym.&rdquo;
           <span className="not-italic"> — Marek Aureliusz</span>
         </p>
       </div>
