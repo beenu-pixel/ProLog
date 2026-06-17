@@ -17,8 +17,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { MetricValue } from "@/components/metric-value";
+import { PhotoGallery } from "@/components/photo-gallery";
 import { METRICS } from "@/lib/metrics";
 import { deleteEntry } from "@/lib/storage";
+import { sanitizeEntryHtml } from "@/lib/sanitize";
 import { playSound } from "@/lib/sound";
 import { setOpenEntry } from "@/lib/active-context";
 import { useEntries } from "@/hooks/use-entries";
@@ -102,11 +104,13 @@ export default function EntryDetailPage() {
       {entry.content ? (
         <div
           className="prose-content text-base leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: entry.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeEntryHtml(entry.content) }}
         />
-      ) : (
+      ) : entry.photos?.length ? null : (
         <p className="text-sm text-muted-foreground italic">Brak treści.</p>
       )}
+
+      {entry.photos?.length ? <PhotoGallery photos={entry.photos} /> : null}
 
       <div className="flex justify-end gap-3 border-t pt-6">
         <Button asChild variant="outline">

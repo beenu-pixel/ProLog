@@ -9,13 +9,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScalePicker } from "@/components/scale-picker";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { METRICS } from "@/lib/metrics";
+import {
+  PhotoAddButton,
+  PhotoField,
+  type PhotoFieldHandle,
+} from "@/components/photo-field";
+import { METRICS, METRIC_BY_KEY } from "@/lib/metrics";
 import { addEntry } from "@/lib/storage";
+import { deletePhotos } from "@/lib/photos";
 import { deriveTitle } from "@/lib/api-entry";
+import {
+  canSaveEntry,
+  htmlHasText,
+  resolveTitle,
+  SAVE_BLOCK_MESSAGE,
+} from "@/lib/entry-validation";
 import { takeDraft } from "@/lib/entry-draft";
 import { playSound } from "@/lib/sound";
+import { useSession } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import type { MetricKey, Scale } from "@/lib/types";
+import type { EntryPhoto, MetricKey, Scale } from "@/lib/types";
 
 const TOTAL = METRICS.length + 1; // 5 metryk + ekran notatki
 
@@ -30,7 +43,26 @@ export function EntryWizard() {
   const [values, setValues] = useState<Partial<Record<MetricKey, Scale>>>({});
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [photos, setPhotos] = useState<EntryPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const loggedIn = Boolean(useSession());
+  const photoFieldRef = useRef<PhotoFieldHandle>(null);
+  // Sprzątanie sierot: ścieżki wgrane w tej sesji. Gdy wpis nie zostanie
+  // zapisany (powrót/zamknięcie), kasujemy je ze Storage.
+  const uploadedPaths = useRef<string[]>([]);
+  const saved = useRef(false);
+
+  useEffect(() => {
+    // Celowo czytamy najświeższą wartość refów przy odmontowaniu (nie w chwili
+    // uruchomienia efektu) — chcemy listę uploadów z momentu opuszczenia ekranu.
+    return () => {
+      if (!saved.current && uploadedPaths.current.length > 0) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        void deletePhotos(uploadedPaths.current);
+      }
+    };
+  }, []);
 
   // Wersja robocza z dolnego paska („Zapisz jako wpis"): jeśli istnieje,
   // wstawiamy treść i wnioskowany tytuł, więc kreator zaczyna od metryk, a
@@ -81,11 +113,20 @@ export function EntryWizard() {
 
   const save = () => {
     clearTimer();
-    if (!title.trim()) {
-      setError("Podaj tytuł wpisu.");
+    // Wpis musi nieść tekst (tytuł/treść) — albo zdjęcie z nastrojem.
+    const check = canSaveEntry({
+      title,
+      content,
+      photoCount: photos.length,
+      metricCount: Object.keys(values).length,
+    });
+    if (!check.ok) {
+      setError(SAVE_BLOCK_MESSAGE[check.reason!]);
       return;
     }
-    const created = addEntry({ title: title.trim(), content, ...values });
+    saved.current = true;
+    const finalTitle = resolveTitle({ title, content, photoCount: photos.length });
+    const created = addEntry({ title: finalTitle, content, photos, ...values });
     playSound("entry-save");
     router.push(`/entries/${created.id}`);
   };
@@ -163,8 +204,51 @@ export function EntryWizard() {
             </div>
             <div className="space-y-2">
               <Label>Treść</Label>
-              <RichTextEditor value={content} onChange={setContent} />
+              <RichTextEditor
+                value={content}
+                onChange={setContent}
+                toolbarExtra={
+                  loggedIn ? (
+                    <PhotoAddButton
+                      onClick={() => photoFieldRef.current?.open()}
+                    />
+                  ) : undefined
+                }
+              />
+              {loggedIn && (
+                <PhotoField
+                  ref={photoFieldRef}
+                  photos={photos}
+                  onChange={setPhotos}
+                  onUploaded={(photo) =>
+                    uploadedPaths.current.push(photo.path)
+                  }
+                />
+              )}
             </div>
+
+            {/* Wpis bez tekstu, ale ze zdjęciem, wymaga nastroju — pozwalamy go
+                ustawić tu, bez cofania kroków. Znika, gdy pojawi się tekst. */}
+            {photos.length > 0 &&
+              !(title.trim() !== "" || htmlHasText(content)) && (
+                <div className="space-y-2">
+                  <Label>{METRIC_BY_KEY.mood.prompt}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Wymagane przy wpisie bez tekstu.
+                  </p>
+                  <ScalePicker
+                    value={values.mood}
+                    onChange={(value) => {
+                      setValues((prev) => ({ ...prev, mood: value }));
+                      if (error) setError(null);
+                    }}
+                    levels={METRIC_BY_KEY.mood.levels}
+                    ariaLabel={METRIC_BY_KEY.mood.label}
+                    size="sm"
+                  />
+                </div>
+              )}
+
             <div className="flex justify-between">
               <Button variant="ghost" onClick={goBack}>
                 Wstecz
