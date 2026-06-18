@@ -452,8 +452,9 @@ zużycia.
   `PROLOG_ADMIN_EMAILS` (lista właścicieli widzących panel zużycia AI).
 - **Personal Access Token:** prefiks `plog_`, w bazie tylko hash SHA-256 (`api_tokens`).
 - **Log zużycia AI:** tabela `ai_usage`; funkcje AI egzekwowane serwerowo (`user-auth.ts`).
-- **Rate-limiting AI:** tabela `rate_limit_hits` (RLS bez polityk — dostęp tylko kluczem
-  sekretnym); serwis `src/lib/services/rate-limit.ts`; sanityzacja HTML w `src/lib/sanitize.ts`
+- **Rate-limiting AI:** tabela `rate_limit_hits` (RLS z jawną polityką deny-all dla
+  `anon`/`authenticated` — dostęp tylko kluczem sekretnym, który omija RLS); serwis
+  `src/lib/services/rate-limit.ts`; sanityzacja HTML w `src/lib/sanitize.ts`
   (zależność `isomorphic-dompurify`).
 
 ---
@@ -497,8 +498,16 @@ wyłącznie po stronie serwera. Uzupełniono trzy obszary.
 - Funkcje SQL `hybrid_search` i `immutable_unaccent` dostały **stały `search_path`**
   (`ALTER FUNCTION … SET search_path`) — usuwa ostrzeżenie audytu `function_search_path_mutable`,
   nie ruszając ciała funkcji ani generowanej kolumny `entries.fts`.
-- **Do włączenia w panelu** (konfiguracja Auth, nie kod): ochrona przed wyciekłymi hasłami
-  (HaveIBeenPwned) — domyka ostatnie ostrzeżenie audytu.
+- **Polityka deny-all dla `rate_limit_hits`** (migracja `…_rate_limit_hits_deny_policies`):
+  tabela miała RLS włączone celowo BEZ polityk (dostęp tylko kluczem sekretnym), co advisor
+  Supabase zgłaszał jako `rls_enabled_no_policy`. Dodano jawną politykę `restrictive`
+  odmawiającą dostępu `anon`/`authenticated` — zachowanie bez zmian (`service_role`/klucz
+  sekretny i tak omija RLS), ostrzeżenie advisora zniknęło, a intencja jest udokumentowana.
+- **Wzmocniona polityka haseł** (konfiguracja Auth w panelu): minimalna długość hasła
+  podniesiona do **8 znaków** oraz wymóg złożoności (małe + wielkie litery + cyfry).
+- **Niedostępne na planie FREE:** ochrona przed wyciekłymi hasłami (HaveIBeenPwned) wymaga
+  planu **Pro** — advisor utrzymuje ostrzeżenie `auth_leaked_password_protection`, ale przy
+  aktywnych wymaganiach złożoności jest to akceptowalne; do włączenia po ewentualnym upgrade.
 
 ---
 
@@ -562,5 +571,6 @@ same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *po
 | 2026-06-16  | RAG: kontekst terapeuty/agenta budowany z `hybridSearch` (najtrafniejsze wpisy + 7 dni). | 3    |
 | 2026-06-17  | Zdjęcia wpisów: prywatny bucket Storage `entry-photos` (signed URLs) + galeria i lightbox; reguła zapisu. | 5 |
 | 2026-06-17  | Wyszukiwarka lokalna: ranking trafności (liczba = dzień/rok; treść niżej) + regulowana szerokość panelu. | 2 |
+| 2026-06-18  | Audyt: polityka deny-all dla `rate_limit_hits` (migracja) + wzmocnienie haseł (min. 8 znaków, złożoność); `architektura.md`. | 4 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
