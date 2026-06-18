@@ -22,34 +22,34 @@ pytanie do agenta) są wystawione na zewnątrz przez **REST API** (`/api/v1`) or
 ```mermaid
 flowchart TB
     subgraph Client["Przeglądarka (React 19 / Next App Router)"]
-        UI["Ekrany: /entries, /new, /stats,\n/settings, /welcome, / (landing), /docs"]
-        LS[("localStorage\n(reaktywne źródło prawdy UI)")]
-        Editor["Edytor TipTap + ComposerBar\n(tekst / mikrofon)"]
+        UI["Ekrany: /entries, /new, /stats,<br/>/settings, /welcome, / (landing), /docs"]
+        LS[("localStorage<br/>(reaktywne źródło prawdy UI)")]
+        Editor["Edytor TipTap + ComposerBar<br/>(tekst / mikrofon)"]
     end
 
     subgraph Vercel["Next.js na Vercel (Route Handlers, runtime nodejs)"]
         direction TB
-        RestV1["REST /api/v1\n(entries, entries/[date], agent)"]
-        MCP["MCP /api/[transport] → /api/mcp\n(create_entry, read_entries, ask_agent)"]
-        Therapist["/api/therapist\n(czat 5 person, streaming)"]
-        Transcribe["/api/transcribe\n(audio → tekst)"]
+        RestV1["REST /api/v1<br/>(entries, entries/[date], agent)"]
+        MCP["MCP /api/[transport] → /api/mcp<br/>(create_entry, read_entries, ask_agent)"]
+        Therapist["/api/therapist<br/>(czat 5 person, streaming)"]
+        Transcribe["/api/transcribe<br/>(audio → tekst)"]
         Search["/api/search"]
         Limits["/api/limits"]
-        Admin["/api/admin/usage,\n/api/admin/backfill-embeddings"]
-        Services["src/lib/services/*\n(entries, agent, search,\nembeddings, rate-limit, ai-usage)"]
+        Admin["/api/admin/usage,<br/>/api/admin/backfill-embeddings"]
+        Services["src/lib/services/*<br/>(entries, agent, search,<br/>embeddings, rate-limit, ai-usage)"]
     end
 
     subgraph Supabase["Supabase (projekt aqdtcggmownyvsnxnjao)"]
-        Auth["Auth\n(JWT sesji, Google OAuth)"]
-        DB[("Postgres\nentries (+embedding pgvector, +fts),\ntherapist_*, agent_chat_messages,\napi_tokens, ai_usage, rate_limit_hits")]
-        RPC["RPC hybrid_search\n(FTS + wektor, RRF)"]
-        Storage[("Storage: bucket entry-photos\n(prywatny, signed URLs)")]
+        Auth["Auth<br/>(JWT sesji, Google OAuth)"]
+        DB[("Postgres<br/>entries (+embedding pgvector, +fts),<br/>therapist_*, agent_chat_messages,<br/>api_tokens, ai_usage, rate_limit_hits")]
+        RPC["RPC hybrid_search<br/>(FTS + wektor, RRF)"]
+        Storage[("Storage: bucket entry-photos<br/>(prywatny, signed URLs)")]
     end
 
     subgraph External["Zewnętrzne API (serwerowe klucze)"]
-        XAI["xAI Grok 4.3\n(agent / terapeuta)"]
-        OpenAI["OpenAI\ntext-embedding-3-small"]
-        Groq["Groq Whisper\nlarge-v3-turbo"]
+        XAI["xAI Grok 4.3<br/>(agent / terapeuta)"]
+        OpenAI["OpenAI<br/>text-embedding-3-small"]
+        Groq["Groq Whisper<br/>large-v3-turbo"]
     end
 
     UI <--> LS
@@ -70,7 +70,7 @@ flowchart TB
     Transcribe --> Groq
     Therapist --> XAI
 
-    ExternalClient["Klient zewnętrzny\n(skill claude.ai, MCP host)"] -- "Bearer plog_" --> RestV1
+    ExternalClient["Klient zewnętrzny<br/>(skill claude.ai, MCP host)"] -- "Bearer plog_" --> RestV1
     ExternalClient -- "Bearer plog_" --> MCP
 ```
 
@@ -202,4 +202,3 @@ przy 80% i blokuje po wyczerpaniu dziennego limitu).
   (migracja `…_rate_limit_hits_deny_policies` — ostrzeżenie zniknęło); polityka haseł wzmocniona
   (min. 8 znaków + złożoność). Pozostaje WARN `auth_leaked_password_protection` — funkcja
   HaveIBeenPwned wymaga planu **Pro**, więc na FREE nie da się jej włączyć (do włączenia po upgrade).
-```
