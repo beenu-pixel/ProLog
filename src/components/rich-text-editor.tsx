@@ -8,11 +8,14 @@ import { Bold, Italic, List, ListOrdered, Loader2, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
 import { useTranscription } from "@/hooks/use-transcription";
+import { useAiLimit } from "@/hooks/use-ai-limits";
 
 interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  /** Dodatkowy element paska narzędzi, wyrównany do prawej (np. „dodaj zdjęcie"). */
+  toolbarExtra?: React.ReactNode;
 }
 
 function ToolbarButton({
@@ -51,30 +54,39 @@ function DictateButton({ editor }: { editor: Editor }) {
       editor.chain().focus().insertContent(`${text} `).run();
     }
   );
+  const limit = useAiLimit("transcribe");
+  // Blokujemy mikrofon po wyczerpaniu dziennego limitu (chyba że właśnie trwa
+  // nagrywanie — pozwalamy je dokończyć).
+  const disabled =
+    !supported || transcribing || (limit.blocked && !listening);
 
   return (
     <button
       type="button"
       onClick={toggle}
-      disabled={!supported || transcribing}
+      disabled={disabled}
       aria-pressed={listening}
       aria-busy={transcribing}
       aria-label="Dyktuj"
       title={
-        supported
-          ? transcribing
-            ? "Transkrypcja…"
-            : listening
-              ? "Zatrzymaj nagrywanie"
-              : "Dyktuj"
-          : "Nagrywanie nie jest wspierane w tej przeglądarce"
+        !supported
+          ? "Nagrywanie nie jest wspierane w tej przeglądarce"
+          : limit.blocked && !listening
+            ? "Dzienny limit transkrypcji wykorzystany — odnowi się o północy"
+            : transcribing
+              ? "Transkrypcja…"
+              : listening
+                ? "Zatrzymaj nagrywanie"
+                : limit.nearLimit
+                  ? `Dyktuj — zostało ${limit.remaining} na dziś`
+                  : "Dyktuj"
       }
       className={cn(
         "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors",
         listening
           ? "bg-destructive/10 text-destructive"
           : "text-muted-foreground hover:bg-accent hover:text-foreground",
-        (!supported || transcribing) &&
+        disabled &&
           "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
       )}
     >
@@ -88,7 +100,13 @@ function DictateButton({ editor }: { editor: Editor }) {
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({
+  editor,
+  toolbarExtra,
+}: {
+  editor: Editor;
+  toolbarExtra?: React.ReactNode;
+}) {
   // Dyktowanie (transkrypcja AI) tylko dla zalogowanych — spójnie z dolnym paskiem.
   const loggedIn = Boolean(useSession());
   return (
@@ -130,6 +148,9 @@ function Toolbar({ editor }: { editor: Editor }) {
           <DictateButton editor={editor} />
         </>
       )}
+
+      {/* Slot po prawej (np. „dodaj zdjęcie") — oddzielony auto-marginesem. */}
+      {toolbarExtra && <div className="ml-auto flex items-center">{toolbarExtra}</div>}
     </div>
   );
 }
@@ -138,6 +159,7 @@ export function RichTextEditor({
   value,
   onChange,
   placeholder = "Co chodzi Ci po głowie?",
+  toolbarExtra,
 }: RichTextEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
@@ -164,7 +186,7 @@ export function RichTextEditor({
 
   return (
     <div className="rounded-md border bg-transparent transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} toolbarExtra={toolbarExtra} />
       <EditorContent editor={editor} />
     </div>
   );

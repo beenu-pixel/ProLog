@@ -3,6 +3,12 @@ import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
 import { hybridSearch } from "@/lib/services/search";
 import { buildJournalContextFromHits } from "@/lib/therapist-context";
+import {
+  enforceRateLimit,
+  rateLimitHeaders,
+  rateLimitResponse,
+  RateLimitError,
+} from "@/lib/services/rate-limit";
 
 // Strumieniowa rozmowa z cyfrowym terapeutą przez xAI (Grok 4.1 Fast). Klucz
 // (XAI_API_KEY) jest zmienną SERWEROWĄ — nigdy nie trafia do przeglądarki,
@@ -39,6 +45,14 @@ interface TherapistRequest {
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateUser(request);
   if (isUserAuthError(auth)) return auth;
+
+  let rl;
+  try {
+    rl = await enforceRateLimit(auth.userId, "therapist");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
 
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
@@ -179,6 +193,7 @@ export async function POST(request: Request): Promise<Response> {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
+      ...rateLimitHeaders(rl),
     },
   });
 }

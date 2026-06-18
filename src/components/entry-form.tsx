@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoodSlider } from "@/components/mood-slider";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import {
+  PhotoAddButton,
+  PhotoField,
+  type PhotoFieldHandle,
+} from "@/components/photo-field";
 import { METRICS } from "@/lib/metrics";
 import { addEntry, updateEntry } from "@/lib/storage";
+import { deletePhotos } from "@/lib/photos";
+import { canSaveEntry, resolveTitle, SAVE_BLOCK_MESSAGE } from "@/lib/entry-validation";
 import { playSound } from "@/lib/sound";
-import type { Entry, MetricKey, Scale } from "@/lib/types";
+import { useSession } from "@/lib/auth";
+import type { Entry, EntryPhoto, MetricKey, Scale } from "@/lib/types";
 
 interface EntryFormProps {
   /** Wpis do edycji. Brak = tryb dodawania nowego wpisu. */
@@ -24,6 +32,31 @@ export function EntryForm({ entry }: EntryFormProps) {
 
   const [title, setTitle] = useState(entry?.title ?? "");
   const [content, setContent] = useState(entry?.content ?? "");
+  const [photos, setPhotos] = useState<EntryPhoto[]>(entry?.photos ?? []);
+
+  const loggedIn = Boolean(useSession());
+  const photoFieldRef = useRef<PhotoFieldHandle>(null);
+  // Ścieżki obecne na wejściu (po zapisie kasujemy te usunięte; przy anulowaniu
+  // kasujemy tylko nowe, wgrane w tej sesji).
+  const originalPaths = useRef<string[]>(
+    (entry?.photos ?? []).map((p) => p.path)
+  );
+  const uploadedPaths = useRef<string[]>([]);
+  const saved = useRef(false);
+
+  useEffect(() => {
+    // Celowo czytamy najświeższą wartość refów przy odmontowaniu (Anuluj/wyjście):
+    // chcemy listę uploadów z momentu opuszczenia formularza, nie z chwili montażu.
+    /* eslint-disable react-hooks/exhaustive-deps */
+    return () => {
+      if (saved.current) return;
+      const uploaded = uploadedPaths.current;
+      const original = originalPaths.current;
+      const orphans = uploaded.filter((p) => !original.includes(p));
+      if (orphans.length > 0) void deletePhotos(orphans);
+    };
+    /* eslint-enable react-hooks/exhaustive-deps */
+  }, []);
   // Suwak zawsze ma wartość 1–5 — brakujące metryki (np. starsze wpisy)
   // startują od „3" (neutralnie).
   const [values, setValues] = useState<Record<MetricKey, Scale>>(() => {
@@ -37,12 +70,27 @@ export function EntryForm({ entry }: EntryFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setError("Podaj tytuł wpisu.");
+    const check = canSaveEntry({
+      title,
+      content,
+      photoCount: photos.length,
+      metricCount: Object.values(values).length,
+    });
+    if (!check.ok) {
+      setError(SAVE_BLOCK_MESSAGE[check.reason!]);
       return;
     }
 
-    const input = { title: title.trim(), content, ...values };
+    const finalTitle = resolveTitle({ title, content, photoCount: photos.length });
+    const input = { title: finalTitle, content, photos, ...values };
+    saved.current = true;
+
+    // Zdjęcia usunięte z wpisu znikają też ze Storage (best-effort).
+    const currentPaths = photos.map((p) => p.path);
+    const removed = originalPaths.current.filter(
+      (p) => !currentPaths.includes(p)
+    );
+    if (removed.length > 0) void deletePhotos(removed);
 
     if (isEdit && entry) {
       updateEntry(entry.id, input);
@@ -74,7 +122,23 @@ export function EntryForm({ entry }: EntryFormProps) {
 
       <div className="space-y-2">
         <Label>Treść</Label>
-        <RichTextEditor value={content} onChange={setContent} />
+        <RichTextEditor
+          value={content}
+          onChange={setContent}
+          toolbarExtra={
+            loggedIn ? (
+              <PhotoAddButton onClick={() => photoFieldRef.current?.open()} />
+            ) : undefined
+          }
+        />
+        {loggedIn && (
+          <PhotoField
+            ref={photoFieldRef}
+            photos={photos}
+            onChange={setPhotos}
+            onUploaded={(photo) => uploadedPaths.current.push(photo.path)}
+          />
+        )}
       </div>
 
       <div className="space-y-5">

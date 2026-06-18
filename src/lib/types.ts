@@ -7,6 +7,14 @@ export type Mood = Scale;
 /** Klucze metryk zapisywanych z wpisem (kolejność = kolejność kroków kreatora). */
 export type MetricKey = "sleep" | "energy" | "mood" | "productivity" | "stress";
 
+/** Pojedyncze zdjęcie wpisu — referencja do obiektu w prywatnym buckecie Storage. */
+export interface EntryPhoto {
+  /** Stabilny identyfikator (klucz Reacta, część nazwy pliku). */
+  id: string;
+  /** Ścieżka obiektu w buckecie `entry-photos`: `${userId}/${id}.${ext}`. */
+  path: string;
+}
+
 /** Pojedynczy wpis dziennika (Etap 1 — przechowywany w localStorage). */
 export interface Entry {
   id: string;
@@ -28,7 +36,11 @@ export interface Entry {
   createdAt: string;
   /** Data ostatniej edycji, ISO 8601 (opcjonalna). */
   updatedAt?: string;
+  /** Zdjęcia dołączone do wpisu (opcjonalne — wpis może mieć sam tekst). */
+  photos?: EntryPhoto[];
 }
 
 /** Dane wejściowe formularza/kreatora — bez pól nadawanych automatycznie. */
-export type EntryInput = Pick<Entry, "title" | "content" | MetricKey>;
+export type EntryInput = Pick<Entry, "title" | "content" | MetricKey> & {
+  photos?: EntryPhoto[];
+};

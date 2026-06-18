@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
+import {
+  enforceRateLimit,
+  rateLimitHeaders,
+  rateLimitResponse,
+  RateLimitError,
+} from "@/lib/services/rate-limit";
 
 // Transkrypcja audio przez Groq (model Whisper large-v3-turbo). Klucz API
 // (GROQ_API_KEY) jest zmienną SERWEROWĄ — nigdy nie trafia do przeglądarki,
@@ -19,6 +25,14 @@ const MODEL = "whisper-large-v3-turbo";
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateUser(request);
   if (isUserAuthError(auth)) return auth;
+
+  let rl;
+  try {
+    rl = await enforceRateLimit(auth.userId, "transcribe");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
 
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -69,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
     const data = (await res.json()) as { text?: string };
     // Whisper nie zwraca liczby tokenów — logujemy samo wywołanie (atrybucja konta).
     logAiUsage({ userId: auth.userId, email: auth.email, endpoint: "transcribe", model: MODEL });
-    return NextResponse.json({ text: data.text ?? "" });
+    return NextResponse.json({ text: data.text ?? "" }, { headers: rateLimitHeaders(rl) });
   } catch {
     return NextResponse.json(
       { error: "Nie udało się połączyć z usługą transkrypcji." },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Image as ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { dayKey, formatWeekdayShort } from "@/lib/format";
@@ -116,7 +117,9 @@ export function DayStrip({
       <div className="flex w-max gap-2.5 px-1">
         {days.map((date) => {
           const key = dayKey(date);
-          const has = (entriesByDay.get(key)?.length ?? 0) > 0;
+          const dayEntries = entriesByDay.get(key) ?? [];
+          const has = dayEntries.length > 0;
+          const hasPhotos = dayEntries.some((e) => (e.photos?.length ?? 0) > 0);
           const selected = key === selectedKey;
           const today = isToday(date);
 
@@ -127,11 +130,13 @@ export function DayStrip({
               type="button"
               onClick={() => onSelect(date)}
               aria-current={selected ? "date" : undefined}
-              aria-label={date.toLocaleDateString("pl-PL", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
+              aria-label={
+                date.toLocaleDateString("pl-PL", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                }) + (hasPhotos ? ", ze zdjęciem" : "")
+              }
               className={cn(
                 "flex w-14 shrink-0 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 transition-colors",
                 selected ? "bg-accent" : "hover:bg-accent/60"
@@ -148,9 +153,19 @@ export function DayStrip({
               <span className="text-xl font-bold leading-none tabular-nums">
                 {date.getDate()}
               </span>
-              {/* Stała wysokość znacznika, by liczby były wyrównane w rzędzie. */}
-              <span className="flex h-1.5 items-center">
-                {has && (
+              {/* Stała wysokość znacznika (mieści ikonę), by liczby były wyrównane
+                  w rzędzie. Dzień ze zdjęciem → ikona (implikuje wpis); sam wpis →
+                  kropka; brak wpisów → pusto. */}
+              <span className="flex h-3 items-center">
+                {hasPhotos ? (
+                  <ImageIcon
+                    className={cn(
+                      "size-3",
+                      selected ? "text-foreground" : "text-muted-foreground"
+                    )}
+                    aria-hidden
+                  />
+                ) : has ? (
                   <span
                     className={cn(
                       "size-1.5 rounded-full",
@@ -158,7 +173,7 @@ export function DayStrip({
                     )}
                     aria-hidden
                   />
-                )}
+                ) : null}
               </span>
               {today && (
                 <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">

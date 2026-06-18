@@ -10,8 +10,9 @@ import { CustomScroll } from "@/components/custom-scroll";
 import { EntryListItem } from "@/components/entry-list-item";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { useAiLimit, noteFromHeaders } from "@/hooks/use-ai-limits";
 import { useSession, getAccessToken } from "@/lib/auth";
-import { entryMatches } from "@/lib/search";
+import { searchEntries } from "@/lib/search";
 import { playSound } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import type { Entry } from "@/lib/types";
@@ -44,6 +45,7 @@ export function EntryList() {
   const loggedIn = Boolean(session);
   const [query, setQuery] = useState("");
   const [smart, setSmart] = useState(false);
+  const searchLimit = useAiLimit("search");
 
   // Wyniki trybu inteligentnego (null = brak/nieaktywny).
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -58,10 +60,10 @@ export function EntryList() {
   const trimmed = query.trim();
   const smartActive = smart && loggedIn && trimmed.length > 0;
 
-  // Filtr lokalny (tryb zwykły).
+  // Filtr lokalny (tryb zwykły) — filtruje i porządkuje wg trafności:
+  // dopasowania po dacie nad tymi, które tylko zawierają szukaną liczbę w treści.
   const filtered = useMemo(
-    () =>
-      trimmed ? entries.filter((entry) => entryMatches(entry, query)) : entries,
+    () => (trimmed ? searchEntries(entries, query) : entries),
     [entries, query, trimmed]
   );
 
@@ -86,6 +88,7 @@ export function EntryList() {
           },
           body: JSON.stringify({ query: trimmed }),
         });
+        noteFromHeaders("search", res); // odśwież stan limitu (też przy 429)
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = (await res.json()) as { hits?: SearchHit[] };
         if (!cancelled) setHits(data.hits ?? []);
@@ -136,20 +139,25 @@ export function EntryList() {
             />
           </div>
 
-          {/* Przełącznik inteligentnego wyszukiwania — tylko dla zalogowanych. */}
+          {/* Przełącznik inteligentnego wyszukiwania — tylko dla zalogowanych.
+              Wyłączony, gdy wyczerpano dzienny limit wyszukiwań. */}
           {loggedIn && (
             <button
               type="button"
               onClick={() => setSmart((v) => !v)}
+              disabled={searchLimit.blocked}
               aria-pressed={smart}
               aria-label="Inteligentne wyszukiwanie"
               title={
-                smart
-                  ? "Inteligentne wyszukiwanie (znaczenie + ostatnie 7 dni) — włączone"
-                  : "Włącz inteligentne wyszukiwanie (znaczenie + ostatnie 7 dni)"
+                searchLimit.blocked
+                  ? "Dzienny limit inteligentnego wyszukiwania wykorzystany — odnowi się o północy"
+                  : smart
+                    ? "Inteligentne wyszukiwanie (znaczenie + ostatnie 7 dni) — włączone"
+                    : "Włącz inteligentne wyszukiwanie (znaczenie + ostatnie 7 dni)"
               }
               className={cn(
                 "flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors",
+                searchLimit.blocked && "cursor-not-allowed opacity-50",
                 smart
                   ? "border-primary bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -159,6 +167,15 @@ export function EntryList() {
             </button>
           )}
         </div>
+
+        {/* Ostrzeżenie o zbliżającym się / wyczerpanym dziennym limicie wyszukiwań. */}
+        {loggedIn && smart && (searchLimit.blocked || searchLimit.nearLimit) && (
+          <p className="px-1 text-xs text-muted-foreground">
+            {searchLimit.blocked
+              ? "Dzienny limit inteligentnego wyszukiwania wykorzystany — odnowi się o północy."
+              : `Zostało ${searchLimit.remaining} wyszukiwań na dziś.`}
+          </p>
+        )}
       </div>
 
       <CustomScroll

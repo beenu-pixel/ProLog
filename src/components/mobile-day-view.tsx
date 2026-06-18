@@ -5,9 +5,11 @@ import Link from "next/link";
 
 import { DayStrip } from "@/components/day-strip";
 import { MetricValue } from "@/components/metric-value";
+import { PhotoGallery } from "@/components/photo-gallery";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { setOpenDay } from "@/lib/active-context";
+import { sanitizeEntryHtml } from "@/lib/sanitize";
 import { METRICS } from "@/lib/metrics";
 import { groupByDay } from "@/lib/stats";
 import { addDays, dayKey, formatDate, formatTime } from "@/lib/format";
@@ -111,11 +113,13 @@ function DayEntry({ entry }: { entry: Entry }) {
       {entry.content ? (
         <div
           className="prose-content text-base leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: entry.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeEntryHtml(entry.content) }}
         />
-      ) : (
+      ) : entry.photos?.length ? null : (
         <p className="text-sm italic text-muted-foreground">Brak treści.</p>
       )}
+
+      {entry.photos?.length ? <PhotoGallery photos={entry.photos} /> : null}
     </Link>
   );
 }

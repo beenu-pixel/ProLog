@@ -1,6 +1,6 @@
 import { supabase, isConfigured } from "@/lib/supabase";
 import { isSeedEntry } from "@/lib/seed";
-import type { Entry } from "@/lib/types";
+import type { Entry, EntryPhoto } from "@/lib/types";
 
 /**
  * Warstwa „mirror": localStorage pozostaje reaktywnym źródłem prawdy dla UI,
@@ -19,6 +19,7 @@ interface EntryRow {
   energy: number | null;
   productivity: number | null;
   stress: number | null;
+  photos: EntryPhoto[] | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -34,6 +35,7 @@ function fromRow(row: EntryRow): Entry {
     energy: row.energy ?? undefined,
     productivity: row.productivity ?? undefined,
     stress: row.stress ?? undefined,
+    photos: row.photos ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
   } as Entry;
@@ -51,6 +53,7 @@ function toRow(entry: Entry, userId: string) {
     energy: entry.energy ?? null,
     productivity: entry.productivity ?? null,
     stress: entry.stress ?? null,
+    photos: entry.photos ?? [],
     created_at: entry.createdAt,
     updated_at: entry.updatedAt ?? null,
   };

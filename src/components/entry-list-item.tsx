@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Image as ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +26,7 @@ export function EntryListItem({
   badge?: string;
 }) {
   const excerpt = toExcerpt(entry.content, 90);
+  const hasPhotos = (entry.photos?.length ?? 0) > 0;
 
   return (
     <li>
@@ -45,6 +47,12 @@ export function EntryListItem({
             <p className="text-xs font-semibold uppercase tracking-wide">
               {formatWeekday(entry.createdAt)}
             </p>
+            {hasPhotos && (
+              <>
+                <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="sr-only">Zawiera zdjęcie</span>
+              </>
+            )}
             {badge && (
               <span className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 {badge}

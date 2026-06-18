@@ -55,7 +55,9 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 export default function HeroScene({ src, className, onReady }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

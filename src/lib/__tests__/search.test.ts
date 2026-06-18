@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { entryMatches } from "@/lib/search";
+import { entryMatches, searchEntries } from "@/lib/search";
 import type { Entry } from "@/lib/types";
 
 // 2026-05-28 to czwartek; godzina bez „Z", by nie przesuwać dnia w innej strefie.
@@ -60,5 +60,72 @@ describe("entryMatches", () => {
   it("nie dopasowuje, gdy zapytanie nie występuje", () => {
     expect(entryMatches(entry, "29")).toBe(false);
     expect(entryMatches(entry, "rower")).toBe(false);
+  });
+
+  // 2026-06-14 — wpis czerwcowy, dzień 14, do testów kolizji cyfr daty.
+  const june14: Entry = {
+    id: "x-june-14",
+    title: "Włochy — cały album",
+    content: "<p>Przeglądałem zdjęcia z Włoch.</p>",
+    mood: 4,
+    createdAt: "2026-06-14T18:00:00",
+  };
+
+  it("liczba nie łapie wpisu przez cyfry miesiąca/roku w dacie", () => {
+    expect(entryMatches(june14, "14")).toBe(true); // dzień
+    // „06" to miesiąc czerwiec — NIE może łapać wpisu z czerwca po numerze dnia
+    // (treść tego wpisu nie zawiera „06").
+    expect(entryMatches(june14, "06")).toBe(false);
+    // „02" jest podciągiem roku „2026" — nie może fałszywie pasować przez datę.
+    expect(entryMatches(june14, "02")).toBe(false);
+    // rok nadal działa (dokładne 4 cyfry).
+    expect(entryMatches(june14, "2026")).toBe(true);
+  });
+
+  it("liczba pasuje też, gdy występuje w treści wpisu", () => {
+    const run: Entry = {
+      id: "run",
+      title: "Bieg",
+      content: "<p>Przebiegłem 1500 metrów.</p>",
+      mood: 4,
+      createdAt: "2026-03-09T18:00:00", // dzień 9, nie 15
+    };
+    // „15" nie jest datą tego wpisu, ale jest w treści („1500").
+    expect(entryMatches(run, "15")).toBe(true);
+  });
+
+  describe("searchEntries — ranking", () => {
+    const day15: Entry = {
+      id: "day15",
+      title: "Piętnasty",
+      content: "<p>Zwykły dzień.</p>",
+      mood: 3,
+      createdAt: "2026-04-15T18:00:00", // 15 jako DATA (dzień)
+    };
+    const text15: Entry = {
+      id: "text15",
+      title: "Bieg",
+      content: "<p>Przebiegłem 1500 metrów.</p>", // 15 tylko w TREŚCI
+      mood: 4,
+      createdAt: "2026-04-09T18:00:00",
+    };
+    const none: Entry = {
+      id: "none",
+      title: "Nic wspólnego",
+      content: "<p>Inny dzień.</p>",
+      mood: 3,
+      createdAt: "2026-04-20T18:00:00",
+    };
+
+    it("dopasowania po dacie idą nad dopasowania z treści", () => {
+      // Wejście w kolejności „najnowsze u góry": none(20), day15(15), text15(09).
+      const result = searchEntries([none, day15, text15], "15");
+      expect(result.map((e) => e.id)).toEqual(["day15", "text15"]);
+    });
+
+    it("puste zapytanie zwraca wejście bez zmian", () => {
+      const input = [none, day15, text15];
+      expect(searchEntries(input, "")).toBe(input);
+    });
   });
 });

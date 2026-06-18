@@ -1,6 +1,7 @@
 import type { Entry, EntryInput } from "@/lib/types";
 import { buildSeedEntries } from "@/lib/seed";
 import { pushEntry, deleteRemote } from "@/lib/sync";
+import { deletePhotos } from "@/lib/photos";
 
 const STORAGE_KEY = "prolog.entries";
 // Flaga „już zasiano" — żeby nie odtwarzać przykładowych wpisów po tym, jak
@@ -173,8 +174,11 @@ export function updateEntry(id: string, input: EntryInput): Entry | undefined {
 }
 
 export function deleteEntry(id: string): void {
+  const entry = readRaw().find((e) => e.id === id);
   writeRaw(readRaw().filter((entry) => entry.id !== id));
   deleteRemote(id);
+  // Best-effort sprzątanie zdjęć z prywatnego bucketa (no-op bez sesji).
+  if (entry?.photos?.length) void deletePhotos(entry.photos.map((p) => p.path));
 }
 
 export { STORAGE_KEY };

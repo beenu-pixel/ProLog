@@ -2,6 +2,12 @@ import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { hybridSearch } from "@/lib/services/search";
 import { isApiError } from "@/lib/api-error";
 import { EmbeddingError } from "@/lib/services/embeddings";
+import {
+  enforceRateLimit,
+  rateLimitHeaders,
+  rateLimitResponse,
+  RateLimitError,
+} from "@/lib/services/rate-limit";
 
 // POST /api/search — wyszukiwanie hybrydowe (wektor + full-text, RRF) + kontekst
 // ostatnich N dni. Auth: sesja przeglądarki (JWT Supabase) jak /api/therapist —
@@ -12,6 +18,14 @@ import { EmbeddingError } from "@/lib/services/embeddings";
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateUser(request);
   if (isUserAuthError(auth)) return auth;
+
+  let rl;
+  try {
+    rl = await enforceRateLimit(auth.userId, "search");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -26,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const hits = await hybridSearch(auth.userId, query, { limit, recentDays });
-    return Response.json({ hits });
+    return Response.json({ hits }, { headers: rateLimitHeaders(rl) });
   } catch (err) {
     if (isApiError(err) || err instanceof EmbeddingError) {
       return Response.json({ error: err.message }, { status: err.status });
