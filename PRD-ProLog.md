@@ -1,8 +1,8 @@
 # PRD — ProLog
 
-**Wersja:** 3.2 (Etap 4 — audyt i uszczelnienie bezpieczeństwa)
+**Wersja:** 3.3 (Etap 5 — załączniki: zdjęcia wpisów; Etap 3 rozszerzony o wyszukiwanie semantyczne i 5 person)
 **Data:** 2026-06-17
-**Status:** Żywy dokument — Etap 1 (fundament) i Etap 2 (baza + logowanie) zrealizowane; Etap 3 (AI) zrealizowany, łącznie z zamknięciem funkcji AI za logowaniem i logiem zużycia; Etap 4 (uszczelnienie bezpieczeństwa: sanityzacja XSS, rate-limiting AI, hardening bazy) zrealizowany
+**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy) oraz Etap 5 (**załączniki — zdjęcia wpisów**) zrealizowane
 
 > **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
 > opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
@@ -24,15 +24,23 @@ Co już działa w aplikacji:
   **dźwięki interakcji**, **mobilna nawigacja w hamburgerze**.
 - **Trwały zapis w chmurze** po zalogowaniu (Supabase) + **logowanie Google / e-mail**,
   dwukierunkowa synchronizacja z `localStorage`.
-- **AI:** dyktowanie głosem (transkrypcja), cyfrowy terapeuta „Freud”, sterowanie
-  dziennikiem przez **REST API** i **serwer MCP** (Personal Access Token), strona `/docs`.
+- **AI:** dyktowanie głosem (transkrypcja), cyfrowy terapeuta w **5 personach** (m.in. „Freud”)
+  z przełącznikiem w stylu Gemini, sterowanie dziennikiem przez **REST API** i **serwer MCP**
+  (Personal Access Token), strona `/docs`.
+- **Wyszukiwanie semantyczne (RAG):** embeddingi wpisów + **wyszukiwanie hybrydowe** (wektor +
+  full-text, łączenie RRF) z oknem „ostatnie 7 dni”; przełącznik „inteligentne wyszukiwanie”
+  w UI oraz ten sam kontekst dostarczany terapeucie/agentowi (`/api/search`).
+- **Zdjęcia wpisów (Etap 5):** opcjonalne załączniki — prywatny bucket Storage, galeria +
+  lightbox pod treścią, dodawanie tylko po zalogowaniu.
+- **Publiczny landing (`/`):** czarno-biała strona startowa (popiersie Marka Aureliusza jako
+  chmura punktów 3D) z karuzelą person; zalogowany jest przekierowywany do dziennika.
 - **Bezpieczeństwo AI:** funkcje AI dostępne **tylko po zalogowaniu** (egzekwowane serwerowo),
   UI AI ukryte przed gościem, log zużycia (`ai_usage`) + panel rozliczalności dla właściciela.
 - **Uszczelnienie (Etap 4):** sanityzacja HTML wpisów (ochrona przed XSS), **rate-limiting**
   funkcji AI z dziennym limitem widocznym w UI (ostrzeżenie + blokada), hardening bazy Supabase.
 
-Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3), 9 (bezpieczeństwo i rozliczalność AI)
-i 11 (uszczelnienie bezpieczeństwa).
+Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3 — w tym 8.6 wyszukiwanie semantyczne),
+9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa) i 12 (Etap 5 — zdjęcia).
 
 ---
 
@@ -94,8 +102,9 @@ Zbudować pierwszą działającą wersję ProLog, która pozwala użytkownikowi:
 - ~~Baza danych i backend.~~ → ✅ Etap 2 (Supabase).
 - ~~Logowanie / konta użytkowników.~~ → ✅ Etap 2 (Google OAuth / e-mail).
 - ~~Analiza AI i podsumowania.~~ → ✅ Etap 3 (terapeuta, transkrypcja, API/MCP, gating AI).
-- ~~Wyszukiwanie.~~ → ✅ dodane w Etapie 2.
-- Wciąż poza zakresem: załączniki (zdjęcia), tagi.
+- ~~Wyszukiwanie.~~ → ✅ dodane w Etapie 2 (później rozszerzone o wyszukiwanie semantyczne, sekcja 8.6).
+- ~~Załączniki (zdjęcia).~~ → ✅ Etap 5 (zdjęcia wpisów, sekcja 12).
+- Wciąż poza zakresem: tagi.
 
 ### Kryteria sukcesu (Etap 1)
 - Użytkownik może dodać wpis i natychmiast zobaczyć go na liście.
@@ -196,10 +205,16 @@ na środku służący do dodawania nowego wpisu.
   wpisu odbywa się z poziomu Ekranu 3 (akcja „Edytuj"), nie przez navbar.
 
 ### Routing (URL)
-- `/` lub `/entries` — lista wpisów (Ekran 2).
+- `/` — **publiczny landing** (Etap 5+); zalogowany użytkownik jest przekierowywany do dziennika.
+- `/welcome` — ekran powitalny / wejście do aplikacji.
+- `/entries` — lista wpisów (Ekran 2; domyślny ekran dziennika).
 - `/new` — dodawanie nowego wpisu (Ekran 1).
 - `/entries/:id` — szczegół wpisu (Ekran 3).
 - `/entries/:id/edit` — edycja wpisu (Ekran 1 w trybie edycji).
+- `/settings`, `/stats`, `/docs` — Ustawienia, Statystyki, dokumentacja API/MCP.
+
+> **Zmiana względem fundamentu:** w Etapie 1 `/` było listą wpisów. Obecnie `/` to publiczny
+> landing, a dziennik żyje pod `/entries` (przekierowanie zalogowanych realizuje `SessionRedirect`).
 
 ---
 
@@ -283,7 +298,12 @@ kilka udogodnień przeglądania.
   pierwotne „3 ekrany bez Ustawień”.)
 - **Ekran Statystyk** — przegląd nastroju/aktywności w czasie (nawigacja po miesiącach).
 - **Wyszukiwarka** wpisów + **seed** przykładowych danych + **formatowanie dat** (testy Vitest).
-- **Desktop master-detail** — dwupanelowy układ listy i szczegółu na szerokich ekranach.
+  Tryb lokalny ma ranking trafności — patrz 7.6; tryb „inteligentny” (semantyczny) — patrz 8.6.
+- **Desktop master-detail** — dwupanelowy układ listy i szczegółu na szerokich ekranach,
+  z **regulowaną szerokością panelu bocznego** (przeciąganie krawędzi, zapamiętywane w `localStorage` przez `sidebar-width`).
+- **Publiczny landing (`/`)** — czarno-biała strona startowa w duchu stoickim (popiersie
+  Marka Aureliusza jako obracająca się chmura punktów 3D, three.js, z posterem-fallbackiem)
+  oraz **karuzela person** terapeuty; CTA prowadzi do wejścia w aplikację.
 - **Dźwięki interakcji** (markery + helper `playSound`).
 - **Mobilna nawigacja w hamburgerze** (`NavMenu`) — cała nawigacja schowana w menu na mobile.
 
@@ -312,6 +332,17 @@ Warstwa szlifu spójna z zasadami stylu z Części I (Stoic: subtelność, brak 
   i przejścia CSS oraz crossfade motywu (klasa `no-anim` na `<html>`); niezależnie od tego
   aplikacja respektuje systemowe `prefers-reduced-motion`.
 
+### 7.6 Wyszukiwanie lokalne — ranking trafności (`search.ts`)
+Tryb zwykły (bez AI) filtruje `localStorage` i **porządkuje wyniki wg trafności** zamiast
+samej daty. Dla zapytań liczbowych intencją jest data:
+
+- Token czysto liczbowy znaczy **dzień miesiąca lub rok** (dokładne dopasowanie), a nie dowolny
+  podciąg cyfr — dzięki temu `06` nie łapie całego czerwca (miesiąc), a `02` całego 2026 (rok).
+- Liczba występująca **w treści** (np. „1500”, „2000”) wciąż się znajdzie, ale **niżej** —
+  dopasowania po dacie mają wyższy priorytet niż dopasowania z treści.
+- Tokeny tekstowe (tytuł, treść, dzień tygodnia, miesiąc słownie) i pełne daty z separatorem
+  (`2026-05-29`, `28.05`) działają jak dotąd; wiele tokenów łączy logiczne AND. Testy: `search.test.ts`.
+
 ---
 
 ## 8. Etap 3 — Warstwa AI (zrealizowane do tej pory)
@@ -327,11 +358,15 @@ dziennikiem, a także udostępnienie dziennika programistycznie (API + MCP).
   i interpunkcja). Hook `useTranscription` zarządza `MediaRecorder` i stanami
   `supported` / `listening` / `transcribing`.
 
-### 8.2 Cyfrowy terapeuta „Freud”
-- Czat nad wpisami w stylu psychoanalitycznym przez **`/api/therapist`** (model **xAI Grok 4.3**,
-  klucz `XAI_API_KEY` serwerowo).
+### 8.2 Cyfrowy terapeuta — 5 person
+- Czat nad wpisami przez **`/api/therapist`** (model **xAI Grok 4.3**, klucz `XAI_API_KEY`
+  serwerowo). Dostępnych jest **5 person** (m.in. psychoanalityczny „Freud”), z różnymi stylami
+  rozmowy, przełączanych **przełącznikiem w stylu Gemini**; te same persony prezentuje
+  **karuzela na landingu**. Limit zużycia AI jest **wspólny dla wszystkich person** (zmiana
+  persony nie resetuje licznika — patrz 11.2).
 - **Kontekst warstwowy** pod cache xAI: persona (system) → dziennik (system) → historia
-  rozmowy → świeży kontekst UI dołączony do ostatniego pytania użytkownika.
+  rozmowy → świeży kontekst UI dołączony do ostatniego pytania użytkownika. Sam dziennik jest
+  budowany przez wyszukiwanie hybrydowe (RAG) — patrz 8.6.
 - **Zgoda i prywatność:** przed pierwszym użyciem użytkownik akceptuje wysyłanie treści wpisów
   do modelu; zgodę można cofnąć, a historię wyczyścić (Ustawienia).
 - Historia rozmów: `localStorage` jako źródło + mirror do Supabase
@@ -357,6 +392,20 @@ dziennikiem, a także udostępnienie dziennika programistycznie (API + MCP).
 ### 8.5 Dokumentacja `/docs`
 - Strona w stylu docs.vercel.com z **zakładkami API / MCP**, opisem endpointów,
   przykładami request/response oraz **generatorem tokenu** (Personal Access Token).
+
+### 8.6 Wyszukiwanie semantyczne i hybrydowe (RAG)
+- **Embeddingi wpisów:** każdy wpis ma wektor `entries.embedding` (OpenAI
+  `text-embedding-3-small`, 1536 wymiarów; indeks **pgvector + HNSW**). Liczone automatycznie
+  przy tworzeniu wpisu (`createEntry`); backfill wykonany dla istniejących wpisów. Klucz
+  `OPENAI_API_KEY` jest serwerowy.
+- **Wyszukiwanie hybrydowe (`public.hybrid_search`):** łączy podobieństwo wektorowe z
+  full-textem przez **RRF** (Reciprocal Rank Fusion) i dokłada **okno „ostatnie 7 dni”** —
+  każdy trafiony wpis ma źródło `search` / `recent` / `both`. Serwis `hybridSearch` +
+  endpoint **`/api/search`** (zalogowani, z rate-limitem). W UI to przełącznik **„inteligentne
+  wyszukiwanie”** (ikona Sparkles) obok zwykłej wyszukiwarki.
+- **RAG dla terapeuty/agenta:** kontekst dziennika (8.2 oraz `Ask` w REST/MCP) jest budowany
+  z wyników `hybridSearch` (`buildJournalContextFromHits`) — najtrafniejsze wpisy + ostatnie
+  7 dni, zamiast całego dziennika. Przy braku `OPENAI_API_KEY` degraduje się do pełnego dziennika.
 
 ---
 
@@ -395,8 +444,9 @@ zużycia.
   shadcn/ui, TipTap.
 - **Baza/Auth:** Supabase (ref `aqdtcggmownyvsnxnjao`).
 - **Modele AI:** Groq Whisper (`whisper-large-v3-turbo`) do transkrypcji; xAI Grok 4.3
-  do terapeuty/agenta.
-- **Klucze (zmienne środowiskowe, serwerowe):** `GROQ_API_KEY`, `XAI_API_KEY`,
+  do terapeuty/agenta; OpenAI `text-embedding-3-small` do embeddingów (wyszukiwanie semantyczne).
+- **Klucze (zmienne środowiskowe, serwerowe):** `GROQ_API_KEY`, `XAI_API_KEY`, `OPENAI_API_KEY`
+  (embeddingi; bez niego RAG degraduje się do pełnego dziennika),
   `SUPABASE_SECRET_KEY` (sekret `sb_secret_…`, wymagany przez REST/MCP — inaczej 503),
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (klient),
   `PROLOG_ADMIN_EMAILS` (lista właścicieli widzących panel zużycia AI).
@@ -452,6 +502,39 @@ wyłącznie po stronie serwera. Uzupełniono trzy obszary.
 
 ---
 
+## 12. Etap 5 — Załączniki: zdjęcia wpisów (zrealizowane)
+
+Cel etapu: dziennik przestaje być wyłącznie tekstowy — wpis może nieść zdjęcia (sam tekst,
+same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *poza zakresem*.
+
+### 12.1 Model i przechowywanie
+- Wpis ma kolumnę **`entries.photos`** (`jsonb`, domyślnie `[]`), mirrorowaną w `localStorage`
+  i Supabase (`sync.ts`). Typ `EntryPhoto { id, path }` (`src/lib/types.ts`).
+- Pliki trafiają do **prywatnego bucketa Storage `entry-photos`**, ścieżka `${userId}/${uuid}.${ext}`.
+  RLS izoluje per użytkownik (`(storage.foldername(name))[1] = auth.uid()`).
+- Podgląd wyłącznie przez **podpisane URL-e** (`createSignedUrls`, TTL 1 h) — widzi je tylko
+  właściciel. Serwis `src/lib/photos.ts` (upload/delete/signed URLs) + hook `use-signed-photo-urls`.
+- `deleteEntry` sprząta zdjęcia z bucketa (best-effort).
+
+### 12.2 UI dodawania i wyświetlania
+- **Dodawanie tylko po zalogowaniu** (jak funkcje AI — prywatny bucket): przycisk „Zdjęcie”
+  w pasku narzędzi edytora + `photo-field` (siatka miniatur, podgląd przed zapisem) w kreatorze
+  i edycji.
+- **Wyświetlanie:** `photo-gallery` (siatka, max 4 kafelki + „+N”) i `photo-lightbox`
+  (pełny ekran, ← →, Esc) renderowane **pod treścią** (szczegół wpisu i mobilny widok dnia);
+  na liście wpis ze zdjęciem ma dyskretną ikonę.
+
+### 12.3 Reguła zapisu (spójność z AI/wyszukiwaniem)
+- `src/lib/entry-validation.ts` (`canSaveEntry`): wpis musi nieść **tekst** (tytuł lub treść)
+  **albo** mieć **zdjęcie + ≥1 metrykę nastroju**. „Samo zdjęcie bez niczego” i pusty wpis są
+  blokowane — bo AI i wyszukiwanie karmią się tekstem. Walidacja w UI tworzenia/edycji (nie w API/MCP).
+  Testy: `entry-validation.test.ts`.
+
+> **Uwaga:** wygenerowane pliki źródłowe (`/images-gen`) są pomijane przez `.gitignore` —
+> zdjęcia żyją lokalnie i w Supabase Storage, nie w repozytorium.
+
+---
+
 ## Changelog
 
 | Data        | Zmiana                                                                                  | Etap |
@@ -474,5 +557,10 @@ wyłącznie po stronie serwera. Uzupełniono trzy obszary.
 | 2026-06-17  | Sanityzacja HTML wpisów (DOMPurify) przy renderze i na zapisie — ochrona przed stored XSS. | 4 |
 | 2026-06-17  | Rate-limiting funkcji AI (`rate_limit_hits`): limit dzienny (reset o północy) + UI ostrzega 80% i blokuje po wyczerpaniu; `/api/limits`. | 4 |
 | 2026-06-17  | Hardening bazy: stały `search_path` w funkcjach `hybrid_search`/`immutable_unaccent` (audyt Supabase). | 4 |
+| 2026-06-15  | Terapeuta w 5 personach + przełącznik w stylu Gemini + karuzela person na landingu.     | 3    |
+| 2026-06-16  | Embeddingi wpisów (OpenAI, pgvector+HNSW) + wyszukiwanie hybrydowe (RRF + okno 7 dni), `/api/search`. | 3 |
+| 2026-06-16  | RAG: kontekst terapeuty/agenta budowany z `hybridSearch` (najtrafniejsze wpisy + 7 dni). | 3    |
+| 2026-06-17  | Zdjęcia wpisów: prywatny bucket Storage `entry-photos` (signed URLs) + galeria i lightbox; reguła zapisu. | 5 |
+| 2026-06-17  | Wyszukiwarka lokalna: ranking trafności (liczba = dzień/rok; treść niżej) + regulowana szerokość panelu. | 2 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
