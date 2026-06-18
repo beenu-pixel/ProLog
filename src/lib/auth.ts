@@ -15,6 +15,9 @@ import { pushAll, pullAll } from "@/lib/sync";
 let currentSession: Session | null = null;
 const sessionListeners = new Set<() => void>();
 let authInitialized = false;
+// Id użytkownika, dla którego już wykonaliśmy hydratację z chmury — by zrobić ją
+// raz na sesję, a nie przy każdym odświeżeniu tokenu (`TOKEN_REFRESHED`).
+let hydratedUserId: string | null = null;
 
 function emitSession(): void {
   sessionListeners.forEach((listener) => listener());
@@ -29,10 +32,23 @@ function initAuth(): void {
     emitSession();
   });
 
-  supabase.auth.onAuthStateChange((event, next) => {
+  supabase.auth.onAuthStateChange((_event, next) => {
     currentSession = next;
     emitSession();
-    if (event === "SIGNED_IN") void syncOnSignIn();
+
+    const userId = next?.user.id ?? null;
+    // Hydratuj z chmury przy KAŻDYM wykryciu sesji dla nowego użytkownika:
+    // `SIGNED_IN` (świeże logowanie) ORAZ `INITIAL_SESSION` (otwarcie z zapisaną
+    // sesją — nowa przeglądarka, tryb incognito, powrót z OAuth). supabase-js
+    // przetwarza sesję przed podpięciem tego nasłuchiwacza, więc po logowaniu
+    // często widzimy `INITIAL_SESSION`, nie `SIGNED_IN` — stąd gating po userId,
+    // a nie po nazwie zdarzenia. Pomijamy `TOKEN_REFRESHED` (ten sam userId).
+    if (userId && userId !== hydratedUserId) {
+      hydratedUserId = userId;
+      void syncOnSignIn();
+    } else if (!userId) {
+      hydratedUserId = null;
+    }
   });
 }
 
