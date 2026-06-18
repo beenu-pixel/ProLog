@@ -33,7 +33,7 @@ export interface HybridSearchOptions {
 // Kolumny `entries` potrzebne do zbudowania `Entry` — bez `embedding`/`fts`, by nie
 // przesyłać wektorów (1536 floatów na wiersz) ani tsvectora przez sieć.
 const ENTRY_COLUMNS =
-  "id, title, content, mood, sleep, energy, productivity, stress, created_at, updated_at";
+  "id, title, content, mood, sleep, energy, productivity, stress, photos, created_at, updated_at";
 
 /**
  * Wyszukiwanie hybrydowe dla użytkownika. Zwraca posortowaną listę `SearchHit`:

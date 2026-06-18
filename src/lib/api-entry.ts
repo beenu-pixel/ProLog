@@ -1,4 +1,4 @@
-import type { Entry } from "@/lib/types";
+import type { Entry, EntryPhoto } from "@/lib/types";
 import { toExcerpt } from "@/lib/format";
 
 // Pomocnicze dla endpointów wpisów: deterministyczny tytuł z treści oraz
@@ -16,6 +16,7 @@ export interface EntryRow {
   energy: number | null;
   productivity: number | null;
   stress: number | null;
+  photos: EntryPhoto[] | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -43,6 +44,7 @@ export function rowToEntry(row: EntryRow): Entry {
     energy: row.energy ?? undefined,
     productivity: row.productivity ?? undefined,
     stress: row.stress ?? undefined,
+    photos: row.photos ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
   } as Entry;
