@@ -132,6 +132,19 @@ export function mergeRemoteEntries(remote: Entry[]): void {
   if (changed) writeRaw([...byId.values()]);
 }
 
+/**
+ * Czyści lokalny widok wpisów (localStorage). Wołane po wylogowaniu, by na
+ * współdzielonym urządzeniu nie zostawały cudze/poprzednie wpisy — w chmurze
+ * pozostają nietknięte i wrócą po ponownym zalogowaniu (`mergeRemoteEntries`).
+ * Zdejmuje też flagę seeda, aby świeży, niezalogowany stan mógł zasiać demo.
+ */
+export function clearEntries(): void {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(SEED_FLAG_KEY);
+  notify();
+}
+
 // --- CRUD ----------------------------------------------------------------
 
 /** Wszystkie wpisy, najnowsze na górze (odczyt imperatywny). */

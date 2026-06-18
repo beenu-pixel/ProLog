@@ -145,7 +145,7 @@ export default function SettingsPage() {
             </Button>
           ) : (
             <Button asChild variant="outline" size="sm">
-              <Link href="/welcome">Zaloguj się</Link>
+              <Link href="/welcome?next=/settings">Zaloguj się</Link>
             </Button>
           )}
         </div>

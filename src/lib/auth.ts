@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import { supabase, isConfigured } from "@/lib/supabase";
-import { getEntries, mergeRemoteEntries } from "@/lib/storage";
+import { getEntries, mergeRemoteEntries, clearEntries } from "@/lib/storage";
 import { pushAll, pullAll } from "@/lib/sync";
 
 // --- Współdzielony store sesji --------------------------------------------
@@ -32,9 +32,19 @@ function initAuth(): void {
     emitSession();
   });
 
-  supabase.auth.onAuthStateChange((_event, next) => {
+  supabase.auth.onAuthStateChange((event, next) => {
     currentSession = next;
     emitSession();
+
+    // Wylogowanie: czyścimy lokalny widok, by na współdzielonym urządzeniu nie
+    // zostały cudze wpisy. Tylko na realne `SIGNED_OUT` — NIE na `INITIAL_SESSION`
+    // z pustą sesją (to zwykłe wejście niezalogowanego, którego lokalnych wpisów
+    // nie wolno kasować).
+    if (event === "SIGNED_OUT") {
+      hydratedUserId = null;
+      clearEntries();
+      return;
+    }
 
     const userId = next?.user.id ?? null;
     // Hydratuj z chmury przy KAŻDYM wykryciu sesji dla nowego użytkownika:
@@ -46,8 +56,6 @@ function initAuth(): void {
     if (userId && userId !== hydratedUserId) {
       hydratedUserId = userId;
       void syncOnSignIn();
-    } else if (!userId) {
-      hydratedUserId = null;
     }
   });
 }
@@ -100,12 +108,25 @@ export async function getAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-/** Rozpoczyna logowanie przez Google (redirect z powrotem na /settings). */
-export async function signInWithGoogle(): Promise<void> {
+/**
+ * Tylko bezpieczne ścieżki wewnętrzne (zaczynają się od jednego `/`), by `next`
+ * z URL nie posłużył do open-redirectu na obcą domenę (`//evil.com`).
+ */
+function safeNext(next: string | undefined, fallback = "/entries"): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return fallback;
+  return next;
+}
+
+/**
+ * Rozpoczyna logowanie przez Google. Po powrocie z OAuth ląduje na `next`
+ * (domyślnie dziennik `/entries`); ekran ustawień przekazuje `/settings`, by
+ * wrócić na swoje miejsce.
+ */
+export async function signInWithGoogle(next?: string): Promise<void> {
   if (!isConfigured || !supabase) return;
   await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${window.location.origin}/settings` },
+    options: { redirectTo: `${window.location.origin}${safeNext(next)}` },
   });
 }
 

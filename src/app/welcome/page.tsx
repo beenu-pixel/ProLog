@@ -39,14 +39,24 @@ export default function WelcomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Dokąd wrócić po zalogowaniu. Domyślnie dziennik; ekran ustawień wchodzi tu
+  // z `?next=/settings`, by wrócić na swoje miejsce. Czytamy z `window` (bez
+  // `useSearchParams`, które wymagałoby Suspense). Tylko ścieżki wewnętrzne.
+  // `next` nie trafia do JSX, więc brak ryzyka rozjazdu hydratacji SSR↔klient.
+  const [next] = useState(() => {
+    if (typeof window === "undefined") return "/entries";
+    const p = new URLSearchParams(window.location.search).get("next");
+    return p && p.startsWith("/") && !p.startsWith("//") ? p : "/entries";
+  });
 
-  // Gdy sesja już istnieje (np. wejście tutaj po zalogowaniu) — do dziennika.
+  // Gdy sesja już istnieje (np. wejście tutaj po zalogowaniu e-mailem) — wracamy
+  // tam, skąd przyszliśmy (dziennik domyślnie, ustawienia jeśli stamtąd weszliśmy).
   useEffect(() => {
     if (session) {
       markWelcomeSeen();
-      router.replace("/entries");
+      router.replace(next);
     }
-  }, [session, router]);
+  }, [session, router, next]);
 
   const isSignup = mode === "signup";
 
@@ -80,7 +90,7 @@ export default function WelcomePage() {
 
   const handleGoogle = () => {
     markWelcomeSeen();
-    void signInWithGoogle();
+    void signInWithGoogle(next);
   };
 
   const handleSkip = () => {
