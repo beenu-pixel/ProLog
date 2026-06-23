@@ -1,8 +1,8 @@
 # PRD — ProLog
 
-**Wersja:** 3.3 (Etap 5 — załączniki: zdjęcia wpisów; Etap 3 rozszerzony o wyszukiwanie semantyczne i 5 person)
-**Data:** 2026-06-17
-**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy) oraz Etap 5 (**załączniki — zdjęcia wpisów**) zrealizowane
+**Wersja:** 3.4 (Etap 6 — monetyzacja: plany Free/Pro/Max + płatności Stripe)
+**Data:** 2026-06-23
+**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**) oraz Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`) zrealizowane
 
 > **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
 > opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
@@ -544,6 +544,59 @@ same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *po
 
 ---
 
+## 13. Etap 6 — Monetyzacja: plany płatne (zrealizowane)
+
+Cel etapu: warstwa komercyjna. Wprowadzić **plany Free / Pro / Max**, zamienić dotychczasowy
+„zawór bezpieczeństwa" rate-limitów w **realne quoty produktowe per plan** i podłączyć
+**płatności Stripe**. Strona biznesowa (model, research rynku, ceny, go-to-market) opisana
+osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
+
+### 13.1 Model planu (`subscriptions` + `plans.ts`)
+- Tabela **`public.subscriptions`** (jeden wiersz = użytkownik): `tier` (free/pro/max),
+  `status`, `current_period_end`, `cancel_at_period_end`, pola providera
+  (`provider`, `provider_customer_id`, `provider_subscription_id`). RLS: użytkownik czyta
+  tylko swój wiersz; zapis wyłącznie kluczem sekretnym (webhook). Brak wiersza / `status != active` ⇒ **free**.
+- **`src/lib/plans.ts`** — jedno źródło prawdy: `PLAN_LIMITS` (limity per plan i kubełek),
+  dozwolone persony (`free → ["freud"]`), głębia RAG (`ragDepth`), dostęp do raportów,
+  `getUserPlan` / `getUserSubscription`. Funkcje czyste pokryte testami (`plans.test.ts`).
+
+### 13.2 Bramkowanie funkcji AI (po zużyciu, nie po personie)
+- **Limity per plan:** `rate-limit.ts` pobiera limity z `plans.ts` wg planu użytkownika.
+  Na **Free** czat z personą i `ask_agent` (REST/MCP) dzielą **wspólną** dzienną pulę „rozmów AI"
+  (5/dzień) — liczone razem (`dailyCountBuckets`), by nie obejść limitu przez API.
+- **Persony:** `/api/therapist` zwraca **403** dla persony spoza planu (Free = tylko Freud).
+- **Głębia RAG:** `hybridSearch` dostaje węższe okno/mniej trafień na Free, pełne na Pro/Max.
+- **API/MCP rozdzielone wg kosztu:** narzędzia danych (`create_entry`/`read_entries`, eksport)
+  są **otwarte dla każdego zalogowanego** (lekki limit anty-abuse `api_data`, RODO/portability);
+  tylko `ask_agent` (woła model) liczy się do puli AI planu.
+
+### 13.3 Płatności — Stripe (Payment Links + webhook)
+- Checkout bez własnego endpointu: **Stripe Payment Links** (Pro/Max, mies./rok). Do URL-a
+  doklejamy **`?client_reference_id=<userId>`** (inaczej webhook nie wie, kogo odblokować).
+- **Webhook `/api/billing/webhook`** (surowe body + weryfikacja podpisu): `checkout.session.completed`
+  → upsert `subscriptions` (plan z **kwoty** płatności — `tierForAmount`, bez `price_id`),
+  `customer.subscription.updated/deleted` → status, `current_period_end`, `cancel_at_period_end`.
+  **Jedyne źródło prawdy o planie** — UI nigdy nie ustawia planu sama.
+- **Portal `/api/billing/portal`** — hostowane zarządzanie subskrypcją (zmiana karty, anulowanie).
+- Klucze serwerowe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+
+### 13.4 Raporty AI (funkcja Pro/Max)
+- **`/api/reports`** + serwis `reports.ts`: zbiera wpisy z okna (tydzień/miesiąc), buduje kontekst
+  (`buildJournalContext`) i prosi xAI o podsumowanie nastroju, korelacji i wątków. Tygodniowy od **Pro**,
+  miesięczny tylko **Max** (`isReportPeriodAllowed`); kubełek limitu `reports`, log w `ai_usage`.
+
+### 13.5 UI i dostępność cennika
+- **`/pricing`** (3 plany) oraz **sekcja „Plany" na landingu** (`#plany`) — wspólne dane z `pricing-plans.ts`.
+- **Onboarding:** po **rejestracji** użytkownik trafia raz na `/pricing` (flaga w `welcome.ts`), potem
+  może kontynuować za darmo.
+- **Panel „Plan i płatności"** w `/settings`: bieżący plan, status, data odnowienia / „Anulowana —
+  dostęp do …", przejście do cennika i portalu Stripe.
+- **Kłódki** na personach (przełącznik) i raportach poza planem → prowadzą do cennika.
+- **Landing** wymuszony na tryb ciemny; karuzela person z dopracowanym hover (portrety zawsze
+  w skali szarości, podpis-nakładka unosi się, delikatna poświata).
+
+---
+
 ## Changelog
 
 | Data        | Zmiana                                                                                  | Etap |
@@ -572,5 +625,10 @@ same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *po
 | 2026-06-17  | Zdjęcia wpisów: prywatny bucket Storage `entry-photos` (signed URLs) + galeria i lightbox; reguła zapisu. | 5 |
 | 2026-06-17  | Wyszukiwarka lokalna: ranking trafności (liczba = dzień/rok; treść niżej) + regulowana szerokość panelu. | 2 |
 | 2026-06-18  | Audyt: polityka deny-all dla `rate_limit_hits` (migracja) + wzmocnienie haseł (min. 8 znaków, złożoność); `architektura.md`. | 4 |
+| 2026-06-22  | Plany Free/Pro/Max: tabela `subscriptions`, `plans.ts` (limity/persony/RAG per plan), rate-limiting per plan + bramka person + głębia RAG. | 6 |
+| 2026-06-22  | Płatności Stripe: Payment Links + `client_reference_id` + webhook `/api/billing/webhook` → `subscriptions`; portal `/api/billing/portal`. | 6 |
+| 2026-06-22  | Raporty AI tyg./mies. (Pro/Max): `/api/reports` + `reports.ts`. | 6 |
+| 2026-06-22  | Cennik `/pricing` + sekcja „Plany" na landingu (ciemny, nowy hover person); onboarding po rejestracji → cennik; panel „Plan i płatności" w `/settings`. | 6 |
+| 2026-06-23  | Panel planu: rozróżnienie subskrypcji odnawianej od anulowanej na koniec okresu (`cancel_at_period_end`). | 6 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).

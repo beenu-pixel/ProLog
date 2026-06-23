@@ -3,12 +3,11 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * Lekki nagłówek strony marketingowej (`/`). Nawigacja aplikacji jest tu ukryta
  * (patrz `app-header.tsx` / `bottom-bar.tsx`) — landing ma własny pasek z logo,
- * przełącznikiem motywu i głównym CTA.
+ * kotwicami i głównym CTA. Bez przełącznika motywu — landing jest zawsze ciemny.
  */
 export function LandingHeader() {
   return (
@@ -24,16 +23,16 @@ export function LandingHeader() {
           <Link href="#terapeuci" className="transition-colors hover:text-foreground">
             Terapeuci
           </Link>
+          <Link href="#plany" className="transition-colors hover:text-foreground">
+            Plany
+          </Link>
           <Link href="/docs" className="transition-colors hover:text-foreground">
             Dokumentacja
           </Link>
         </nav>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <Button asChild size="sm">
-            <Link href="/welcome">Rozpocznij</Link>
-          </Button>
-        </div>
+        <Button asChild size="sm">
+          <Link href="/welcome">Rozpocznij</Link>
+        </Button>
       </div>
     </header>
   );

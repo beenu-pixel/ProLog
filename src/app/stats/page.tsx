@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { StatsCalendar } from "@/components/stats-calendar";
 import { StatsSummary } from "@/components/stats-summary";
 import { StatsDayPanel } from "@/components/stats-day-panel";
+import { ReportsPanel } from "@/components/reports-panel";
 import { PageScroll } from "@/components/page-scroll";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -93,6 +94,8 @@ export default function StatsPage() {
         days={rangeDays}
         dayMap={dayMap}
       />
+
+      <ReportsPanel />
       </div>
     </PageScroll>
   );

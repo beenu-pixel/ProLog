@@ -1,6 +1,11 @@
 import { authenticate, isAuthError } from "@/lib/api-auth";
 import { createEntry } from "@/lib/services/entries";
 import { isApiError } from "@/lib/api-error";
+import {
+  enforceRateLimit,
+  rateLimitResponse,
+  RateLimitError,
+} from "@/lib/services/rate-limit";
 
 // POST /api/v1/entries — dodanie nowego wpisu.
 // Auth: Authorization: Bearer <PAT>. Body:
@@ -12,6 +17,15 @@ import { isApiError } from "@/lib/api-error";
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticate(request);
   if (isAuthError(auth)) return auth;
+
+  // Lekki limit anty-abuse na narzędziach danych (te same progi na każdym planie —
+  // dostępu do własnych danych nie zamykamy za paywallem).
+  try {
+    await enforceRateLimit(auth.userId, "api_data");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
 
   let body: Record<string, unknown>;
   try {

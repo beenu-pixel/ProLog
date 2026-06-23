@@ -6,6 +6,7 @@ import { verifyApiToken } from "@/lib/api-auth";
 import { isApiError } from "@/lib/api-error";
 import { createEntry, getEntriesForDay } from "@/lib/services/entries";
 import { askAgent } from "@/lib/services/agent";
+import { enforceRateLimit } from "@/lib/services/rate-limit";
 
 // Remote HTTP MCP server (Streamable HTTP). Dzięki dynamicznemu segmentowi
 // [transport] i basePath "/api" publiczny endpoint to POST /api/mcp.
@@ -70,7 +71,11 @@ const handler = createMcpHandler(
       },
       async (args, extra) => {
         try {
-          const entry = await createEntry(userIdOf(extra), args);
+          const userId = userIdOf(extra);
+          // Lekki limit anty-abuse na narzędziach danych (RateLimitError to ApiError,
+          // więc fail() zwróci go jako błąd narzędzia).
+          await enforceRateLimit(userId, "api_data");
+          const entry = await createEntry(userId, args);
           return ok({ entry });
         } catch (err) {
           return fail(err);
@@ -90,7 +95,9 @@ const handler = createMcpHandler(
       },
       async (args, extra) => {
         try {
-          const result = await getEntriesForDay(userIdOf(extra), args.date);
+          const userId = userIdOf(extra);
+          await enforceRateLimit(userId, "api_data");
+          const result = await getEntriesForDay(userId, args.date);
           return ok(result);
         } catch (err) {
           return fail(err);
@@ -115,7 +122,11 @@ const handler = createMcpHandler(
       },
       async (args, extra) => {
         try {
-          const result = await askAgent(userIdOf(extra), args);
+          const userId = userIdOf(extra);
+          // ask_agent woła model (koszt) — liczy się do puli rozmów AI planu
+          // (na free wspólnej z czatem terapeuty).
+          await enforceRateLimit(userId, "api_agent");
+          const result = await askAgent(userId, args);
           return ok(result);
         } catch (err) {
           return fail(err);

@@ -1,4 +1,5 @@
 import { getTherapist } from "@/lib/therapists";
+import { getUserPlan, isPersonaAllowed, ragDepth } from "@/lib/plans";
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
 import { hybridSearch } from "@/lib/services/search";
@@ -46,14 +47,6 @@ export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateUser(request);
   if (isUserAuthError(auth)) return auth;
 
-  let rl;
-  try {
-    rl = await enforceRateLimit(auth.userId, "therapist");
-  } catch (err) {
-    if (err instanceof RateLimitError) return rateLimitResponse(err);
-    throw err;
-  }
-
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
     return Response.json(
@@ -77,6 +70,29 @@ export async function POST(request: Request): Promise<Response> {
   const therapist = getTherapist(body.therapistId ?? "");
   const uiContext = body.uiContext ?? "";
 
+  // Plan użytkownika steruje dostępem do person i głębią RAG.
+  const plan = await getUserPlan(auth.userId);
+
+  // Bramka person: na planie free dostępny jest tylko Freud. Sprawdzamy PRZED
+  // rate-limitem, żeby zablokowana próba nie zżerała dziennej puli rozmów.
+  if (!isPersonaAllowed(plan, therapist.id)) {
+    return Response.json(
+      {
+        error: `Persona „${therapist.name}" jest dostępna w planie Pro.`,
+        upgrade: true,
+      },
+      { status: 403 }
+    );
+  }
+
+  let rl;
+  try {
+    rl = await enforceRateLimit(auth.userId, "therapist");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
+
   // RAG: kontekst dziennika budujemy SERWEROWO z wyszukiwania hybrydowego po treści
   // ostatniej wiadomości użytkownika (najtrafniejsze wpisy + zawsze ostatnie 7 dni).
   // Gdy wyszukiwanie/embedding padnie (np. brak OPENAI_API_KEY), wracamy do pełnego
@@ -85,7 +101,13 @@ export async function POST(request: Request): Promise<Response> {
   let journalContext = body.journalContext ?? "";
   if (lastUserText.trim()) {
     try {
-      const hits = await hybridSearch(auth.userId, lastUserText, { recentDays: 7 });
+      // Głębia kontekstu zależy od planu: free = płytki (krótkie okno + mało trafień),
+      // pro/max = pełna pamięć nad całym dziennikiem.
+      const depth = ragDepth(plan);
+      const hits = await hybridSearch(auth.userId, lastUserText, {
+        recentDays: depth.recentDays,
+        limit: depth.limit,
+      });
       journalContext = buildJournalContextFromHits(hits);
     } catch (err) {
       console.error("[therapist] hybrid search failed — fallback to client context:", err);

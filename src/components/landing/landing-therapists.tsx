@@ -3,15 +3,15 @@
 import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { THERAPISTS } from "@/lib/therapists";
 import { Reveal } from "@/components/landing/reveal";
 
 /**
  * Sekcja landingu prezentująca persony terapeutów jako poziomą karuzelę
- * portretów (scroll-snap + strzałki ‹ ›). Portrety są ujednolicone skalą
- * szarości (różne źródła: zdjęcia i popiersia), a po najechaniu wracają do
- * naturalnych barw. Czysto prezentacyjna — wybór persony dzieje się w aplikacji.
+ * portretów (scroll-snap + strzałki ‹ ›). Portrety są ZAWSZE w skali szarości
+ * (spójny, stoicki wygląd; różne źródła: zdjęcia i popiersia). Na hover kafelek
+ * się nie skaluje — unosi się tylko podpis (nakładka nad gradientem) i pojawia
+ * delikatna poświata. Czysto prezentacyjna — wybór persony dzieje się w aplikacji.
  */
 export function LandingTherapists() {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -65,26 +65,24 @@ export function LandingTherapists() {
           {THERAPISTS.map((t) => (
             <figure
               key={t.id}
-              className="group w-64 shrink-0 snap-start overflow-hidden rounded-3xl border bg-card transition-transform duration-300 hover:-translate-y-1"
+              className="group relative aspect-[4/5] w-64 shrink-0 snap-start overflow-hidden rounded-3xl border bg-secondary transition-shadow duration-300 hover:shadow-[0_0_40px_-8px_rgba(255,255,255,0.14)]"
             >
-              <div className="aspect-[4/5] overflow-hidden bg-secondary">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={t.image}
-                  alt={t.name}
-                  loading="lazy"
-                  className={cn(
-                    "size-full object-cover grayscale transition-all duration-500",
-                    "group-hover:scale-[1.04] group-hover:grayscale-0"
-                  )}
-                />
-              </div>
-              <figcaption className="space-y-1.5 p-5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={t.image}
+                alt={t.name}
+                loading="lazy"
+                className="absolute inset-0 size-full object-cover grayscale"
+              />
+              {/* Scrim u dołu — czytelność podpisu na zdjęciu. */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
+              {/* Podpis jako nakładka — na hover unosi się i odrobinę bardziej zasłania zdjęcie. */}
+              <figcaption className="absolute inset-x-0 bottom-0 space-y-1.5 p-5 text-white transition-transform duration-300 group-hover:-translate-y-2">
                 <p className="text-lg font-semibold tracking-tight">{t.name}</p>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/70">
                   {t.title}
                 </p>
-                <p className="pt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="pt-1 text-sm leading-relaxed text-white/80">
                   {t.tagline}
                 </p>
               </figcaption>

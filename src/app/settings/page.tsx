@@ -17,6 +17,7 @@ import { useActiveTherapist } from "@/lib/active-therapist";
 import { useSession, signOut } from "@/lib/auth";
 import { ApiTokenManager } from "@/components/api-token-manager";
 import { UsageDashboard } from "@/components/usage-dashboard";
+import { PlanPanel } from "@/components/plan-panel";
 import { PageScroll } from "@/components/page-scroll";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +156,8 @@ export default function SettingsPage() {
           nie ma widzieć, że transkrypcja, terapeuta i klucze API w ogóle istnieją. */}
       {session && (
         <>
+      <PlanPanel />
+
       <UsageDashboard />
 
       <section className="space-y-4">

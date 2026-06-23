@@ -1,6 +1,14 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { dayRangeUtc, todayWarsaw } from "@/lib/api-day";
 import { ApiError } from "@/lib/api-error";
+import {
+  bucketLimit,
+  dailyCountBuckets,
+  getUserPlan,
+  RATE_BUCKETS,
+  type PlanTier,
+  type RateBucket,
+} from "@/lib/plans";
 
 // Rate-limiting funkcji AI oparty o bazę. Model „jeden wiersz = jedno żądanie"
 // (tabela public.rate_limit_hits): przy każdym wywołaniu dostawiamy „stempel",
@@ -10,22 +18,13 @@ import { ApiError } from "@/lib/api-error";
 //     pokazywany i egzekwowany w UI.
 // Zapis/odczyt kluczem sekretnym (RLS bez polityk). Best-effort na błędach infry:
 // gdy zliczanie padnie, NIE blokujemy użytkownika (limiter nie może być źródłem awarii).
+//
+// Limity NIE są już stałe — zależą od PLANU użytkownika (src/lib/plans.ts). Część
+// kubełków dzieli na danym planie WSPÓLNĄ dzienną pulę (np. na free czat z personą
+// i ask_agent liczą się razem) — `dailyCountBuckets` zwraca zbiór kubełków, po
+// którym sumujemy dzienne zużycie.
 
-export type RateBucket = "transcribe" | "therapist" | "search" | "api_agent";
-
-interface BucketLimits {
-  perMinute: number;
-  perDay: number;
-}
-
-// Zawór bezpieczeństwa (sufit kosztowy/abuse), nie quota produktowa — progi
-// kilkukrotnie powyżej realnego użycia, by uczciwy użytkownik ich nie dotknął.
-const LIMITS: Record<RateBucket, BucketLimits> = {
-  therapist: { perMinute: 10, perDay: 60 },
-  api_agent: { perMinute: 10, perDay: 60 },
-  transcribe: { perMinute: 20, perDay: 200 },
-  search: { perMinute: 20, perDay: 300 },
-};
+export type { RateBucket };
 
 const MINUTE_MS = 60 * 1000;
 
@@ -81,8 +80,8 @@ function resetAtIso(): string {
 }
 
 /** Permisywny stan (gdy infra zliczania padnie — nie blokujemy użytkownika). */
-function permissiveInfo(bucket: RateBucket): RateLimitInfo {
-  const limit = LIMITS[bucket].perDay;
+function permissiveInfo(plan: PlanTier, bucket: RateBucket): RateLimitInfo {
+  const limit = bucketLimit(plan, bucket).perDay;
   return { bucket, limit, used: 0, remaining: limit, resetAt: resetAtIso() };
 }
 
@@ -95,20 +94,23 @@ export async function enforceRateLimit(
   userId: string,
   bucket: RateBucket
 ): Promise<RateLimitInfo> {
-  if (!supabaseAdmin) return permissiveInfo(bucket);
+  if (!supabaseAdmin) return permissiveInfo("free", bucket);
 
-  const limits = LIMITS[bucket];
+  const plan = await getUserPlan(userId);
+  const limits = bucketLimit(plan, bucket);
+  // Kubełki współdzielące dzienną pulę na tym planie (np. free: therapist+api_agent).
+  const countBuckets = dailyCountBuckets(plan, bucket);
   const startOfDay = dayRangeUtc(todayWarsaw()).startUtc;
   const minuteAgo = new Date(Date.now() - MINUTE_MS).toISOString();
 
   try {
-    // Stempel bieżącego żądania.
+    // Stempel bieżącego żądania (zawsze pod właściwym kubełkiem).
     const { error: insertError } = await supabaseAdmin
       .from("rate_limit_hits")
       .insert({ user_id: userId, bucket });
     if (insertError) {
       console.error("[rate-limit] insert failed:", insertError);
-      return permissiveInfo(bucket);
+      return permissiveInfo(plan, bucket);
     }
 
     // Sprzątanie starych stempli (best-effort, w tle) — tabela nie rośnie w nieskończoność.
@@ -120,16 +122,16 @@ export async function enforceRateLimit(
         // sprzątanie nie może wpływać na żądanie
       });
 
-    // Stemple z dzisiejszej doby (PL) — z nich liczymy oba okna.
+    // Stemple z dzisiejszej doby (PL) dla CAŁEJ wspólnej puli — z nich liczymy oba okna.
     const { data, error } = await supabaseAdmin
       .from("rate_limit_hits")
       .select("created_at")
       .eq("user_id", userId)
-      .eq("bucket", bucket)
+      .in("bucket", countBuckets)
       .gte("created_at", startOfDay);
     if (error || !data) {
       console.error("[rate-limit] count failed:", error);
-      return permissiveInfo(bucket);
+      return permissiveInfo(plan, bucket);
     }
 
     const dayUsed = data.length;
@@ -153,7 +155,7 @@ export async function enforceRateLimit(
   } catch (err) {
     if (err instanceof RateLimitError) throw err;
     console.error("[rate-limit] unexpected:", err);
-    return permissiveInfo(bucket);
+    return permissiveInfo(plan, bucket);
   }
 }
 
@@ -164,17 +166,24 @@ export async function enforceRateLimit(
 export async function getLimitsFor(
   userId: string
 ): Promise<Record<RateBucket, RateLimitInfo>> {
-  const buckets = Object.keys(LIMITS) as RateBucket[];
+  const plan = await getUserPlan(userId);
+  const buckets = RATE_BUCKETS;
   const resetAt = resetAtIso();
 
-  const build = (used: Record<RateBucket, number>) =>
+  // `rawUsed` = surowe zliczenia per kubełek; `build` sumuje je po wspólnej puli,
+  // żeby zgrupowane kubełki (np. free: therapist+api_agent) raportowały to samo
+  // zużycie i limit — UI widzi jedną, dzieloną pulę.
+  const build = (rawUsed: Record<RateBucket, number>) =>
     Object.fromEntries(
       buckets.map((bucket) => {
-        const limit = LIMITS[bucket].perDay;
-        const u = used[bucket] ?? 0;
+        const limit = bucketLimit(plan, bucket).perDay;
+        const used = dailyCountBuckets(plan, bucket).reduce(
+          (n, b) => n + (rawUsed[b] ?? 0),
+          0
+        );
         return [
           bucket,
-          { bucket, limit, used: u, remaining: Math.max(0, limit - u), resetAt },
+          { bucket, limit, used, remaining: Math.max(0, limit - used), resetAt },
         ];
       })
     ) as Record<RateBucket, RateLimitInfo>;
