@@ -2,13 +2,12 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { PAYMENT_LINKS } from "@/lib/pricing-links";
 import { PLAN_CARDS } from "@/lib/pricing-plans";
 import { PricingCta } from "@/components/pricing-cta";
 
 // Cennik ProLog — 3 plany (Free / Pro / Max). Dane planów współdzielone z sekcją cen
-// na landingu (src/lib/pricing-plans.ts). CTA Pro/Max prowadzą do Stripe Payment Linka
-// z doklejonym ?client_reference_id=<userId>. Styl czarno-biały, stoicki.
+// na landingu (src/lib/pricing-plans.ts). CTA Pro/Max tworzą SERWEROWO sesję Stripe
+// Checkout (userId z sesji JWT, nie z URL-a). Styl czarno-biały, stoicki.
 
 export default function PricingPage() {
   return (
@@ -55,11 +54,8 @@ export default function PricingPage() {
               </Link>
             ) : (
               <PricingCta
-                paymentLink={
-                  plan.id === "pro"
-                    ? PAYMENT_LINKS.pro.monthly
-                    : PAYMENT_LINKS.max.monthly
-                }
+                plan={plan.id === "pro" ? "pro" : "max"}
+                period="monthly"
                 label={`Wybierz ${plan.name}`}
                 featured={plan.featured}
               />

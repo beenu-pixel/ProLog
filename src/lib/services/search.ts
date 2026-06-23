@@ -30,6 +30,31 @@ export interface HybridSearchOptions {
   recentDays?: number;
 }
 
+// Twarde granice zapytania — wartości z ciała żądania (/api/search) lecą wprost do
+// RPC i do okna dat, więc bez przycięcia ktoś mógłby poprosić o ogromny match_count
+// albo absurdalnie szerokie okno, obciążając bazę. Zaciskamy je do rozsądnych sufitów.
+const LIMIT_DEFAULT = 30;
+const LIMIT_MAX = 100;
+const RECENT_DAYS_DEFAULT = 7;
+const RECENT_DAYS_MAX = 90;
+
+/** Przycina liczbę do [min, max]; dla wartości spoza zakresu liczb zwraca `fallback`. */
+function clampInt(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(value)));
+}
+
+/** Normalizuje opcje wyszukiwania do bezpiecznych granic (eksport dla testów). */
+export function normalizeSearchLimits(options: HybridSearchOptions = {}): {
+  limit: number;
+  recentDays: number;
+} {
+  return {
+    limit: clampInt(options.limit, LIMIT_DEFAULT, 1, LIMIT_MAX),
+    recentDays: clampInt(options.recentDays, RECENT_DAYS_DEFAULT, 1, RECENT_DAYS_MAX),
+  };
+}
+
 // Kolumny `entries` potrzebne do zbudowania `Entry` — bez `embedding`/`fts`, by nie
 // przesyłać wektorów (1536 floatów na wiersz) ani tsvectora przez sieć.
 const ENTRY_COLUMNS =
@@ -53,8 +78,7 @@ export async function hybridSearch(
     throw new ApiError(503, "Usługa niedostępna — brak konfiguracji serwera.");
   }
 
-  const limit = options.limit ?? 30;
-  const recentDays = options.recentDays ?? 7;
+  const { limit, recentDays } = normalizeSearchLimits(options);
 
   // 1) Best-effort: domknij embeddingi wpisów dodanych przez UI (mirror nie embeduje).
   //    Gdy braków nie ma → szybki no-op. Błąd nie wywraca wyszukiwania.

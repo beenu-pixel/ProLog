@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
+import { validateAudioFile } from "@/lib/audio-validation";
 import {
   enforceRateLimit,
   rateLimitHeaders,
@@ -55,6 +56,16 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json(
       { error: "Brak pliku audio w polu `file`." },
       { status: 400 }
+    );
+  }
+
+  // Walidacja rozmiaru i typu PRZED wysłaniem do Groq — bez tego zalogowany mógłby
+  // pompować duże/nie-audio pliki, zużywając kredyty właściciela.
+  const rejection = validateAudioFile(file);
+  if (rejection) {
+    return NextResponse.json(
+      { error: rejection.message },
+      { status: rejection.status }
     );
   }
 

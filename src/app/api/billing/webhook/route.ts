@@ -2,7 +2,8 @@ import type Stripe from "stripe";
 
 import { stripe, isStripeConfigured } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { tierForAmount } from "@/lib/plans";
+import { tierForAmount, type PlanTier } from "@/lib/plans";
+import { tierForPriceId } from "@/lib/stripe-prices";
 
 // Webhook Stripe — JEDYNE źródło prawdy o planie użytkownika. Stripe woła ten
 // endpoint po zdarzeniach subskrypcji; my weryfikujemy podpis i zapisujemy plan do
@@ -54,34 +55,59 @@ export async function POST(request: Request): Promise<Response> {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.client_reference_id;
-        const tier = tierForAmount(session.amount_total);
 
         if (!userId) {
           console.warn("[billing/webhook] checkout bez client_reference_id — pomijam.");
           break;
         }
-        if (!tier) {
+
+        // Obrona w głębi: plan aktywujemy WYŁĄCZNIE dla istniejącego konta. Chroni
+        // przed śmieciowym/obcym UUID (choć przy serwerowym Checkout userId i tak
+        // pochodzi z sesji JWT, nie z URL-a).
+        const { data: userData, error: userErr } =
+          await supabaseAdmin.auth.admin.getUserById(userId);
+        if (userErr || !userData?.user) {
           console.warn(
-            "[billing/webhook] nieznana kwota:",
-            session.amount_total,
-            "— nie mapuję na plan."
+            "[billing/webhook] checkout dla nieistniejącego konta:",
+            userId,
+            "— pomijam."
           );
           break;
         }
 
-        // Dociągnij koniec okresu rozliczeniowego od razu (panel „Plan i płatności"
-        // pokazuje datę odnowienia) — bez czekania na późniejsze subscription.updated.
+        // Dociągnij subskrypcję raz: koniec okresu rozliczeniowego (panel pokazuje
+        // datę odnowienia) ORAZ price_id (do ustalenia planu) — bez czekania na
+        // późniejsze subscription.updated.
         let currentPeriodEnd: string | null = null;
+        let priceId: string | null = null;
         if (typeof session.subscription === "string") {
           try {
             const sub = await stripe.subscriptions.retrieve(session.subscription);
-            const periodEndUnix = sub.items?.data?.[0]?.current_period_end ?? null;
+            const item = sub.items?.data?.[0];
+            const periodEndUnix = item?.current_period_end ?? null;
             if (periodEndUnix) {
               currentPeriodEnd = new Date(periodEndUnix * 1000).toISOString();
             }
+            priceId = item?.price?.id ?? null;
           } catch (err) {
             console.error("[billing/webhook] retrieve subscription nieudany:", err);
           }
+        }
+
+        // Ustalanie planu wg malejącej pewności: metadata (ustawiane przez nasz
+        // serwerowy Checkout — najpewniejsze) → price_id → legacy kwota (stare
+        // Payment Linki). Brak wszystkich → nie zgadujemy, pomijamy.
+        const metaTier = session.metadata?.tier;
+        const tier: PlanTier | null =
+          metaTier === "pro" || metaTier === "max"
+            ? metaTier
+            : tierForPriceId(priceId) ?? tierForAmount(session.amount_total);
+
+        if (!tier) {
+          console.warn(
+            "[billing/webhook] nie udało się ustalić planu (metadata/price_id/kwota) — pomijam."
+          );
+          break;
         }
 
         const { error } = await supabaseAdmin.from("subscriptions").upsert({
