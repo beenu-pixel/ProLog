@@ -22,12 +22,30 @@ interface Searchable {
   yearStr: string;
   /** Pełne, liczbowe zapisy daty — dopasowywane tylko dla tokenów z separatorem. */
   dateFormats: string[];
+  /** Czy wpis ma załączone zdjęcia (filtr po słowie-kluczu „zdjęcie"/„photo"). */
+  hasPhotos: boolean;
 }
 
 /** Trafność dopasowania tokenu: data > tekst > brak. */
 const TIER_DATE = 2;
 const TIER_TEXT = 1;
 const TIER_NONE = 0;
+
+// Prefiksy (po deburr/lowercase) słów oznaczających „pokaż wpisy ze zdjęciami".
+// `zdjec` → zdjęcie/zdjęcia/zdjęć; `fotk` → fotka/fotki/fotkę/fotek;
+// `fotograf` → fotografia/fotografie; `photo`/`picture`/`image` + l. mnoga.
+// Celowo bez prefiksu `fot`/`pic` (kolidowałyby z „fotel"/„picnic").
+const PHOTO_PREFIXES = ["zdjec", "fotk", "fotograf", "photo", "picture", "image"];
+// Krótkie formy dopasowywane jako całe słowo, by nie łapać np. „picnic".
+const PHOTO_EXACT = new Set(["pic", "pics"]);
+
+/** Czy token to słowo-klucz oznaczające „wpisy ze zdjęciami". */
+function isPhotoToken(token: string): boolean {
+  return (
+    PHOTO_EXACT.has(token) ||
+    PHOTO_PREFIXES.some((prefix) => token.startsWith(prefix))
+  );
+}
 
 /**
  * Buduje przeszukiwalną reprezentację wpisu. Tekst swobodny (tytuł, treść, dzień
@@ -62,6 +80,7 @@ function searchable(entry: Entry): Searchable {
       `${pad(day)}.${pad(month)}.${year}`,
       `${day}.${month}.${year}`,
     ],
+    hasPhotos: (entry.photos?.length ?? 0) > 0,
   };
 }
 
@@ -73,6 +92,13 @@ function searchable(entry: Entry): Searchable {
  *  - `TIER_NONE` — brak dopasowania.
  */
 function tokenTier(token: string, s: Searchable): number {
+  // Słowo-klucz „zdjęcie"/„photo" → filtr wpisów ze zdjęciami. TIER_TEXT, by
+  // dopasowania po dacie nadal rankowały wyżej, a samo „zdjęcie" dało wszystkim
+  // trafieniom równy wynik (stabilny sort → kolejność od najnowszych).
+  if (isPhotoToken(token)) {
+    return s.hasPhotos ? TIER_TEXT : TIER_NONE;
+  }
+
   // Token z separatorem daty („-" / „.") → tylko pełne zapisy daty.
   if (token.includes("-") || token.includes(".")) {
     return s.dateFormats.some((format) => format.includes(token))

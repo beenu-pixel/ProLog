@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import { supabase, isConfigured } from "@/lib/supabase";
-import { getEntries, mergeRemoteEntries, clearEntries } from "@/lib/storage";
+import {
+  getEntries,
+  mergeRemoteEntries,
+  clearEntries,
+  flushPendingDeletes,
+} from "@/lib/storage";
 import { pushAll, pullAll } from "@/lib/sync";
 
 // --- Współdzielony store sesji --------------------------------------------
@@ -68,6 +73,9 @@ function initAuth(): void {
  */
 async function syncOnSignIn(): Promise<void> {
   try {
+    // Najpierw domknij usunięcia z offline, by chmura nie odesłała skasowanych
+    // wpisów z powrotem (merge i tak pomija nagrobione, ale to czyści kolejkę).
+    await flushPendingDeletes();
     mergeRemoteEntries(await pullAll());
   } catch {
     // pull/merge to najlepszy wysiłek — w razie błędu zostaje sam push poniżej

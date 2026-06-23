@@ -79,17 +79,23 @@ export function pushEntry(entry: Entry): void {
   })();
 }
 
-/** Usuwa wpis z bazy (RLS i tak ogranicza do własnych wierszy). */
-export function deleteRemote(id: string): void {
-  void (async () => {
-    try {
-      const userId = await currentUserId();
-      if (!userId) return;
-      await supabase!.from("entries").delete().eq("id", id);
-    } catch {
-      // jw. — usunięcie lokalne już się powiodło.
-    }
-  })();
+/**
+ * Usuwa wpis z bazy (RLS i tak ogranicza do własnych wierszy). Zwraca `true`,
+ * gdy usunięcie zostało potwierdzone przez bazę; `false` przy braku sesji/
+ * konfiguracji lub błędzie sieci. Wołający (storage) używa tego, by zdjąć
+ * „nagrobek" dopiero po potwierdzeniu — inaczej usunięty wpis mógłby wrócić
+ * przy następnym `pullAll`/`mergeRemoteEntries`.
+ */
+export async function deleteRemote(id: string): Promise<boolean> {
+  try {
+    const userId = await currentUserId();
+    if (!userId) return false;
+    const { error } = await supabase!.from("entries").delete().eq("id", id);
+    return !error;
+  } catch {
+    // jw. — usunięcie lokalne już się powiodło; chmurę dogonimy przy logowaniu.
+    return false;
+  }
 }
 
 /**
