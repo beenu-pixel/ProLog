@@ -19,7 +19,11 @@ import {
   signInWithGoogle,
   useSession,
 } from "@/lib/auth";
-import { markWelcomeSeen } from "@/lib/welcome";
+import {
+  markWelcomeSeen,
+  markPricingOnboarding,
+  consumePricingOnboarding,
+} from "@/lib/welcome";
 
 type Mode = "signin" | "signup";
 
@@ -54,7 +58,10 @@ export default function WelcomePage() {
   useEffect(() => {
     if (session) {
       markWelcomeSeen();
-      router.replace(next);
+      // Świeżo zarejestrowany użytkownik trafia najpierw na cennik (one-shot),
+      // pozostali wracają tam, skąd przyszli.
+      const dest = consumePricingOnboarding() ? "/pricing" : next;
+      router.replace(dest);
     }
   }, [session, router, next]);
 
@@ -80,6 +87,9 @@ export default function WelcomePage() {
       setError(result.error);
       return;
     }
+    // Rejestracja → po zalogowaniu pokażemy cennik (działa też dla wariantu
+    // z potwierdzeniem e-mail: flaga przeżyje do pierwszego logowania).
+    if (isSignup) markPricingOnboarding();
     if (result.needsConfirmation) {
       setInfo("Konto utworzone. Sprawdź skrzynkę i potwierdź adres e-mail.");
       return;
@@ -90,6 +100,8 @@ export default function WelcomePage() {
 
   const handleGoogle = () => {
     markWelcomeSeen();
+    // Gdy użytkownik jest w trybie rejestracji, po powrocie z OAuth pokażemy cennik.
+    if (isSignup) markPricingOnboarding();
     void signInWithGoogle(next);
   };
 

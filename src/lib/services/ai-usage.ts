@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Log zużycia AI — jeden wiersz `ai_usage` na każde wywołanie funkcji AI
-// (transkrypcja, terapeuta, agent API). Zapis przez klucz sekretny (omija RLS).
-// Best-effort: błąd logowania nie może wpływać na odpowiedź użytkownikowi.
+// (transkrypcja, terapeuta, agent API, raporty). Zapis przez klucz sekretny (omija
+// RLS). Best-effort: błąd logowania nie może wpływać na odpowiedź użytkownikowi.
 
-export type AiEndpoint = "transcribe" | "therapist" | "api_agent";
+export type AiEndpoint = "transcribe" | "therapist" | "api_agent" | "reports";
 
 export interface AiUsageInput {
   userId: string;

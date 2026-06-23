@@ -1,6 +1,11 @@
 import { authenticate, isAuthError } from "@/lib/api-auth";
 import { getEntriesForDay } from "@/lib/services/entries";
 import { isApiError } from "@/lib/api-error";
+import {
+  enforceRateLimit,
+  rateLimitResponse,
+  RateLimitError,
+} from "@/lib/services/rate-limit";
 
 // GET /api/v1/entries/[date] — wpis(y) zalogowanego użytkownika na dany dzień.
 // `date` = "YYYY-MM-DD" (Europe/Warsaw). Może być wiele wpisów; zwraca listę.
@@ -12,6 +17,14 @@ export async function GET(
 ): Promise<Response> {
   const auth = await authenticate(request);
   if (isAuthError(auth)) return auth;
+
+  // Lekki limit anty-abuse na narzędziach danych (jednolity dla wszystkich planów).
+  try {
+    await enforceRateLimit(auth.userId, "api_data");
+  } catch (err) {
+    if (err instanceof RateLimitError) return rateLimitResponse(err);
+    throw err;
+  }
 
   const { date } = await ctx.params;
   try {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { THERAPISTS } from "@/lib/therapists";
 import { useActiveTherapist } from "@/lib/active-therapist";
 import { selectTherapist } from "@/lib/therapist-chat-store";
+import { usePlan } from "@/hooks/use-plan";
 
 /**
  * Przełącznik aktywnej persony terapeuty w stylu selektora modelu z czatów AI
@@ -27,7 +28,13 @@ export function TherapistSwitcher({
   className?: string;
 }) {
   const active = useActiveTherapist();
+  const plan = usePlan();
   const [open, setOpen] = useState(false);
+
+  // Persona zablokowana, gdy znamy plan i nie ma jej na liście dozwolonych.
+  // Plan nieznany (gość/ładowanie) => nic nie blokujemy (serwer i tak egzekwuje).
+  const isLocked = (id: string): boolean =>
+    plan != null && !plan.allowedPersonaIds.includes(id);
 
   // W pigułce pokazujemy rozpoznawalny człon nazwiska (jak krótka nazwa modelu).
   const shortName = active.name.split(" ").pop() ?? active.name;
@@ -92,6 +99,7 @@ export function TherapistSwitcher({
           >
             {THERAPISTS.map((t) => {
               const isActive = t.id === active.id;
+              const locked = isLocked(t.id);
               return (
                 <li key={t.id}>
                   <button
@@ -100,6 +108,11 @@ export function TherapistSwitcher({
                     aria-selected={isActive}
                     onClick={() => {
                       setOpen(false);
+                      // Persona spoza planu prowadzi do cennika zamiast wyboru.
+                      if (locked) {
+                        window.location.assign("/pricing");
+                        return;
+                      }
                       void selectTherapist(t.id);
                     }}
                     className={cn(
@@ -111,8 +124,16 @@ export function TherapistSwitcher({
                       {isActive && <Check className="size-4 text-primary" />}
                     </span>
                     <span className="min-w-0 flex-1 leading-tight">
-                      <span className="block truncate text-sm font-medium">
-                        {t.name}
+                      <span className="flex items-center gap-1.5">
+                        <span className="block truncate text-sm font-medium">
+                          {t.name}
+                        </span>
+                        {locked && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <Lock className="size-2.5" />
+                            Pro
+                          </span>
+                        )}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {t.title}
