@@ -1,6 +1,6 @@
 # PRD — ProLog
 
-**Wersja:** 3.4 (Etap 6 — monetyzacja: plany Free/Pro/Max + płatności Stripe)
+**Wersja:** 3.5 (Etap 6 + utrzymanie: niezawodność zdjęć i usuwania, wyszukiwanie po „zdjęcie”)
 **Data:** 2026-06-23
 **Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**) oraz Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`) zrealizowane
 
@@ -283,6 +283,12 @@ kilka udogodnień przeglądania.
   (wciągnięcie wpisów z chmury do `localStorage`), potem `pushAll` (wypchnięcie stanu
   lokalnego z powrotem), by oba źródła się zgadzały. Best-effort — błąd sieci nie wywraca
   logowania.
+- **Trwałe usuwanie (nagrobki):** usunięcie wpisu jest odporne na brak sesji/sieci.
+  `deleteEntry` zdejmuje „nagrobek” (`prolog.pending_deletes`) dopiero **po potwierdzeniu**
+  usunięcia w bazie, `mergeRemoteEntries` **pomija nagrobione id** (nie wskrzesza go z chmury),
+  a logowanie najpierw domyka zaległe usunięcia (`flushPendingDeletes`) **przed** `pullAll`/merge.
+  Rozwiązuje „skasowany wpis wraca z chmury” — wcześniej lokalna kopia była wypychana z powrotem
+  przez `pushAll` przy każdym logowaniu.
 
 ### 7.2 Logowanie / konto
 - **Google OAuth** oraz **e-mail + hasło** (rejestracja z opcjonalnym potwierdzeniem maila).
@@ -342,6 +348,11 @@ samej daty. Dla zapytań liczbowych intencją jest data:
   dopasowania po dacie mają wyższy priorytet niż dopasowania z treści.
 - Tokeny tekstowe (tytuł, treść, dzień tygodnia, miesiąc słownie) i pełne daty z separatorem
   (`2026-05-29`, `28.05`) działają jak dotąd; wiele tokenów łączy logiczne AND. Testy: `search.test.ts`.
+- **Filtr „pokaż wpisy ze zdjęciami”:** słowa-klucze `zdjęcie`/`fotka`/`fotografia`/`photo`/
+  `picture`/`pic` i ich formy zwracają wyłącznie wpisy z załącznikami (filtr `hasPhotos`, **nie**
+  dopasowanie tekstu — wpis ze słowem „zdjęcie” w treści, ale bez załącznika, się nie pokaże).
+  Prefiksy `fot`/`pic` celowo pominięto, by nie łapać „fotel”/„picnic”. Łączy się z innymi
+  tokenami jak AND (np. „zdjęcie środa”).
 
 ---
 
@@ -521,9 +532,19 @@ same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *po
   i Supabase (`sync.ts`). Typ `EntryPhoto { id, path }` (`src/lib/types.ts`).
 - Pliki trafiają do **prywatnego bucketa Storage `entry-photos`**, ścieżka `${userId}/${uuid}.${ext}`.
   RLS izoluje per użytkownik (`(storage.foldername(name))[1] = auth.uid()`).
+- **Kompresja przy uploadzie:** obraz jest skalowany (dłuższy bok ≤ 1600 px) i zapisywany jako
+  **WebP** (jakość 0.8) po stronie klienta (canvas), z poprawką orientacji EXIF i bezpiecznym
+  fallbackiem do oryginału (GIF — zachowanie animacji, brak DOM, błąd dekodowania lub gdy WebP
+  wyszedłby większy). Nowe zdjęcia ważą dziesiątki KB zamiast megabajtów — istotne na planie
+  **free** (brak transformacji obrazów po stronie CDN).
 - Podgląd wyłącznie przez **podpisane URL-e** (`createSignedUrls`, TTL 1 h) — widzi je tylko
-  właściciel. Serwis `src/lib/photos.ts` (upload/delete/signed URLs) + hook `use-signed-photo-urls`.
-- `deleteEntry` sprząta zdjęcia z bucketa (best-effort).
+  właściciel. **Cache URL-i** (`sessionStorage` per ścieżka, z TTL) sprawia, że ponowne wejście
+  we wpis używa tego samego adresu i obraz idzie z **cache przeglądarki** zamiast pobierać się od
+  nowa (wcześniej świeży token przy każdym wejściu wymuszał ponowne pobranie). Serwis
+  `src/lib/photos.ts` (upload/compress/delete/signed URLs) + hook `use-signed-photo-urls`.
+- `deleteEntry` sprząta zdjęcia z bucketa **tylko dla plików nieużywanych przez inny wpis**
+  (`unreferencedPhotoPaths`) — zdjęcie **współdzielone** (np. album i pojedynczy dzień wskazujące
+  ten sam plik) nie zostaje skasowane; edycja zapisuje wpis przed sprzątaniem. Best-effort.
 
 ### 12.2 UI dodawania i wyświetlania
 - **Dodawanie tylko po zalogowaniu** (jak funkcje AI — prywatny bucket): przycisk „Zdjęcie”
@@ -630,5 +651,8 @@ osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
 | 2026-06-22  | Raporty AI tyg./mies. (Pro/Max): `/api/reports` + `reports.ts`. | 6 |
 | 2026-06-22  | Cennik `/pricing` + sekcja „Plany" na landingu (ciemny, nowy hover person); onboarding po rejestracji → cennik; panel „Plan i płatności" w `/settings`. | 6 |
 | 2026-06-23  | Panel planu: rozróżnienie subskrypcji odnawianej od anulowanej na koniec okresu (`cancel_at_period_end`). | 6 |
+| 2026-06-23  | Trwałe usuwanie wpisów: nagrobki `prolog.pending_deletes` + `flushPendingDeletes` przy logowaniu, merge pomija nagrobione — koniec ze wskrzeszaniem skasowanych wpisów z chmury. | 2 |
+| 2026-06-23  | Zdjęcia: kompresja uploadu do WebP (≤1600 px, q0.8), cache podpisanych URL-i (`sessionStorage`), kasowanie ze Storage tylko plików nieużywanych przez inny wpis (`unreferencedPhotoPaths`). | 5 |
+| 2026-06-23  | Wyszukiwarka: filtr „pokaż wpisy ze zdjęciami” po słowach „zdjęcie”/„fotka”/„fotografia”/„photo”/„picture”/„pic” i ich formach (`hasPhotos`, nie tekst). | 2 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
