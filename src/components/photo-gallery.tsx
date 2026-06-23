@@ -63,12 +63,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
               onClick={(e) => open(e, i)}
               className="relative aspect-square overflow-hidden rounded-lg border bg-muted"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- signed URL Supabase */}
-              <img
-                src={img.url}
-                alt=""
-                className="size-full object-cover transition-transform duration-200 hover:scale-[1.03]"
-              />
+              <GalleryImage url={img.url} />
               {isLast && (
                 <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-lg font-medium text-white">
                   +{overflow}
@@ -87,6 +82,36 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
           onClose={() => setOpenAt(null)}
         />
       )}
+    </>
+  );
+}
+
+/**
+ * Pojedyncza miniatura z własnym wskaźnikiem ładowania. Pokazuje kółko, dopóki
+ * obraz nie zostanie w pełni pobrany — wtedy znika spinner, a obraz pojawia się
+ * od razu w całości (bez stopniowego doczytywania). Każda miniatura ładuje się
+ * niezależnie od pozostałych.
+ */
+function GalleryImage({ url }: { url: string }) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      {!loaded && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </span>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- signed URL Supabase */}
+      <img
+        src={url}
+        alt=""
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`size-full object-cover transition-transform duration-200 hover:scale-[1.03] ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
     </>
   );
 }
