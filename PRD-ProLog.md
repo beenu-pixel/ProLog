@@ -1,8 +1,8 @@
 # PRD — ProLog
 
-**Wersja:** 3.5 (Etap 6 + utrzymanie: niezawodność zdjęć i usuwania, wyszukiwanie po „zdjęcie”)
-**Data:** 2026-06-23
-**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**) oraz Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`) zrealizowane
+**Wersja:** 3.6 (Etap 7 — uszczelnienie płatności i drugi audyt bezpieczeństwa)
+**Data:** 2026-06-24
+**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**), Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`) oraz Etap 7 (**uszczelnienie płatności — serwerowy Checkout, drugi audyt OWASP**) zrealizowane
 
 > **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
 > opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
@@ -40,7 +40,8 @@ Co już działa w aplikacji:
   funkcji AI z dziennym limitem widocznym w UI (ostrzeżenie + blokada), hardening bazy Supabase.
 
 Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3 — w tym 8.6 wyszukiwanie semantyczne),
-9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa) i 12 (Etap 5 — zdjęcia).
+9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa), 12 (Etap 5 — zdjęcia),
+13 (Etap 6 — monetyzacja) i 14 (Etap 7 — uszczelnienie płatności + drugi audyt OWASP).
 
 ---
 
@@ -591,15 +592,26 @@ osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
   są **otwarte dla każdego zalogowanego** (lekki limit anty-abuse `api_data`, RODO/portability);
   tylko `ask_agent` (woła model) liczy się do puli AI planu.
 
-### 13.3 Płatności — Stripe (Payment Links + webhook)
-- Checkout bez własnego endpointu: **Stripe Payment Links** (Pro/Max, mies./rok). Do URL-a
-  doklejamy **`?client_reference_id=<userId>`** (inaczej webhook nie wie, kogo odblokować).
+### 13.3 Płatności — Stripe (serwerowy Checkout + webhook)
+> **Uwaga:** pierwotnie checkout szedł przez statyczne **Payment Links** z doklejanym w
+> przeglądarce `?client_reference_id=<userId>`. Drugi audyt (Etap 7) wykazał, że userId
+> pochodził wtedy z danych kontrolowanych przez klienta — patrz sekcja 14.1. Poniżej opis
+> stanu po uszczelnieniu.
+
+- **Serwerowy endpoint `/api/billing/checkout`** tworzy **Stripe Checkout Session**
+  (`mode: subscription`) dla zalogowanego użytkownika. `client_reference_id`, `metadata.user_id`
+  i `metadata.tier` ustawiane są **z sesji JWT po stronie serwera** (nie z URL-a). Przycisk na
+  `/pricing` (`pricing-cta.tsx`) wywołuje endpoint z tokenem sesji i przekierowuje na zwrócony URL.
+- **Mapowanie planu po `price_id`** (`src/lib/stripe-prices.ts`): tier↔Price ID z 4 zmiennych env
+  (`STRIPE_PRICE_{PRO,MAX}_{MONTHLY,YEARLY}`) — odporne na kupony zmieniające kwotę.
 - **Webhook `/api/billing/webhook`** (surowe body + weryfikacja podpisu): `checkout.session.completed`
-  → upsert `subscriptions` (plan z **kwoty** płatności — `tierForAmount`, bez `price_id`),
+  → **weryfikacja, że konto istnieje** (`auth.admin.getUserById`) → ustalenie planu wg malejącej
+  pewności (`metadata.tier` → `tierForPriceId` → legacy `tierForAmount`) → upsert `subscriptions`.
   `customer.subscription.updated/deleted` → status, `current_period_end`, `cancel_at_period_end`.
   **Jedyne źródło prawdy o planie** — UI nigdy nie ustawia planu sama.
 - **Portal `/api/billing/portal`** — hostowane zarządzanie subskrypcją (zmiana karty, anulowanie).
-- Klucze serwerowe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+- Klucze/identyfikatory serwerowe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_PRICE_{PRO,MAX}_{MONTHLY,YEARLY}`.
 
 ### 13.4 Raporty AI (funkcja Pro/Max)
 - **`/api/reports`** + serwis `reports.ts`: zbiera wpisy z okna (tydzień/miesiąc), buduje kontekst
@@ -615,6 +627,52 @@ osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
 - **Kłódki** na personach (przełącznik) i raportach poza planem → prowadzą do cennika.
 - **Landing** wymuszony na tryb ciemny; karuzela person z dopracowanym hover (portrety zawsze
   w skali szarości, podpis-nakładka unosi się, delikatna poświata).
+
+---
+
+## 14. Etap 7 — Uszczelnienie płatności i drugi audyt OWASP (zrealizowane)
+
+Cel etapu: drugi przegląd pod kątem najpopularniejszych ataków webowych — ze szczególnym
+naciskiem na **płatności i dostęp do kupionych funkcji**. Audyt potwierdził, że rdzeń jest
+solidny (RLS na wszystkich tabelach, brak IDOR — serwisy filtrują po `user_id`, PAT jako
+SHA-256 z 256-bitowej entropii, brak CSRF — auth przez nagłówek `Bearer`, doradcy
+bezpieczeństwa Supabase czyści). Domknięto jedną podatność **MEDIUM** w płatnościach i trzy
+mniejsze braki. Całość pokryta testami Vitest (łącznie **108**), typecheck i lint zielone.
+
+### 14.1 Płatności — userId z sesji, nie z URL-a (podatność MEDIUM)
+- **Problem:** statyczne Payment Links doklejały `?client_reference_id=<userId>` w przeglądarce.
+  userId pochodził z danych kontrolowanych przez klienta — można było podmienić UUID i po
+  opłaconej transakcji aktywować plan na **cudze lub nieistniejące** konto.
+- **Naprawa (dwuwarstwowa):** (1) serwerowy `/api/billing/checkout` bierze userId z **sesji JWT**
+  (sekcja 13.3); (2) webhook weryfikuje **istnienie konta** (`getUserById`) przed zapisem i ustala
+  plan z `metadata.tier`/`price_id` zamiast samej kwoty. **Zweryfikowane end-to-end** w trybie
+  testowym Stripe: zakup kartą `4242…` zapisał `tier=pro` na właściwe konto.
+
+### 14.2 Walidacja pliku audio (`/api/transcribe`)
+- Przed wysłaniem do Groq sprawdzamy **rozmiar** (≤ 25 MB → `413`) i **typ MIME** (musi być
+  `audio/*` → inaczej `400`). Czysta funkcja `src/lib/audio-validation.ts` (`validateAudioFile`),
+  pokryta testami — zamyka nadużycie kredytów przez wielkie/nie-audio pliki.
+
+### 14.3 Twarde granice wyszukiwania (`/api/search`)
+- `limit` i `recentDays` z ciała żądania były przekazywane wprost do RPC/okna dat bez górnej
+  granicy. `normalizeSearchLimits` (w `services/search.ts`) zaciska je do `limit ∈ [1, 100]`,
+  `recentDays ∈ [1, 90]` (odrzuca `NaN`/`Infinity`/ułamki) — bezpiecznik anty-nadużycie zasobów.
+
+### 14.4 Nagłówki bezpieczeństwa HTTP (`next.config.ts`)
+- Dla **wszystkich tras** wysyłamy: `Strict-Transport-Security`, **`X-Frame-Options: DENY`**
+  (koniec z clickjackingiem), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin` oraz `Permissions-Policy: camera=(), microphone=(self),
+  geolocation=()` (mikrofon dopuszczony dla własnej domeny — wymaga go transkrypcja głosu).
+- **CSP świadomie odłożona** — wymaga osobnego dostrojenia pod inline-skrypty Next, three.js na
+  landingu i inline-skrypt motywu; `X-Frame-Options: DENY` i tak daje pełną ochronę przed osadzaniem.
+
+### 14.5 Pozycje zaakceptowane (bez zmian)
+- **HaveIBeenPwned** (`auth_leaked_password_protection`) — wymaga planu Supabase **Pro**
+  (projekt na FREE); przy wymuszonej złożoności haseł akceptowalne.
+- **Prompt injection w RAG** — treść wpisów trafia jako kontekst do modelu; inherentne dla RAG,
+  nie jest wyciekiem danych (kontekst = własne wpisy użytkownika).
+- **PAT hashowany SHA-256 bez saltu** — bezpieczne dla tokenów o 256-bitowej entropii losowej
+  (świadomy wybór, nie pomyłka — hasła wymagałyby KDF).
 
 ---
 
@@ -654,5 +712,8 @@ osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
 | 2026-06-23  | Trwałe usuwanie wpisów: nagrobki `prolog.pending_deletes` + `flushPendingDeletes` przy logowaniu, merge pomija nagrobione — koniec ze wskrzeszaniem skasowanych wpisów z chmury. | 2 |
 | 2026-06-23  | Zdjęcia: kompresja uploadu do WebP (≤1600 px, q0.8), cache podpisanych URL-i (`sessionStorage`), kasowanie ze Storage tylko plików nieużywanych przez inny wpis (`unreferencedPhotoPaths`). | 5 |
 | 2026-06-23  | Wyszukiwarka: filtr „pokaż wpisy ze zdjęciami” po słowach „zdjęcie”/„fotka”/„fotografia”/„photo”/„picture”/„pic” i ich formach (`hasPhotos`, nie tekst). | 2 |
+| 2026-06-24  | Płatności: serwerowy `/api/billing/checkout` (userId z JWT, nie z URL-a) + mapowanie po `price_id` + webhook weryfikuje istnienie konta — domknięcie podatności MEDIUM (zweryfikowane E2E w Stripe test). | 7 |
+| 2026-06-24  | Walidacja audio w `/api/transcribe` (≤25 MB, `audio/*`) + twarde granice `/api/search` (`normalizeSearchLimits`: limit≤100, dni≤90). | 7 |
+| 2026-06-24  | Nagłówki bezpieczeństwa HTTP w `next.config.ts` (HSTS, X-Frame-Options: DENY, nosniff, Referrer-Policy, Permissions-Policy). | 7 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
