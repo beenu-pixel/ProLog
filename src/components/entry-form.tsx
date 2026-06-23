@@ -14,7 +14,7 @@ import {
   type PhotoFieldHandle,
 } from "@/components/photo-field";
 import { METRICS } from "@/lib/metrics";
-import { addEntry, updateEntry } from "@/lib/storage";
+import { addEntry, updateEntry, unreferencedPhotoPaths } from "@/lib/storage";
 import { deletePhotos } from "@/lib/photos";
 import { canSaveEntry, resolveTitle, SAVE_BLOCK_MESSAGE } from "@/lib/entry-validation";
 import { playSound } from "@/lib/sound";
@@ -85,15 +85,20 @@ export function EntryForm({ entry }: EntryFormProps) {
     const input = { title: finalTitle, content, photos, ...values };
     saved.current = true;
 
-    // Zdjęcia usunięte z wpisu znikają też ze Storage (best-effort).
     const currentPaths = photos.map((p) => p.path);
     const removed = originalPaths.current.filter(
       (p) => !currentPaths.includes(p)
     );
-    if (removed.length > 0) void deletePhotos(removed);
 
     if (isEdit && entry) {
+      // Najpierw zapis (wpis przestaje referować usunięte ścieżki), potem
+      // sprzątanie — kasujemy tylko pliki nieużywane przez żaden inny wpis,
+      // by nie usunąć zdjęcia współdzielonego (np. album i pojedynczy dzień).
       updateEntry(entry.id, input);
+      if (removed.length > 0) {
+        const orphaned = unreferencedPhotoPaths(removed);
+        if (orphaned.length > 0) void deletePhotos(orphaned);
+      }
       playSound("entry-save");
       router.push(`/entries/${entry.id}`);
     } else {

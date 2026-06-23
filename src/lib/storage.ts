@@ -4,6 +4,10 @@ import { pushEntry, deleteRemote } from "@/lib/sync";
 import { deletePhotos } from "@/lib/photos";
 
 const STORAGE_KEY = "prolog.entries";
+// „Nagrobki" — id wpisów usuniętych lokalnie, których kasowania w chmurze jeszcze
+// nie potwierdzono (brak sesji / błąd sieci). Dopóki id tu jest, `mergeRemoteEntries`
+// go nie wskrzesi, a przy logowaniu domykamy usunięcie (`flushPendingDeletes`).
+const TOMBSTONES_KEY = "prolog.pending_deletes";
 // Flaga „już zasiano" — żeby nie odtwarzać przykładowych wpisów po tym, jak
 // użytkownik świadomie usunie wszystkie wpisy. Sufiks wersji: po zmianie zestawu
 // seeda podbijamy go, by zasiać od nowa u osób, które mają pusty dziennik.
@@ -23,6 +27,50 @@ function readRaw(): Entry[] {
   } catch {
     return [];
   }
+}
+
+// --- Nagrobki (pending deletes) ------------------------------------------
+
+function readTombstones(): string[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = window.localStorage.getItem(TOMBSTONES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTombstones(ids: string[]): void {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(TOMBSTONES_KEY, JSON.stringify([...new Set(ids)]));
+}
+
+function addTombstone(id: string): void {
+  writeTombstones([...readTombstones(), id]);
+}
+
+function removeTombstone(id: string): void {
+  writeTombstones(readTombstones().filter((t) => t !== id));
+}
+
+// --- Zdjęcia współdzielone ------------------------------------------------
+
+/**
+ * Z podanych ścieżek zwraca te, których NIE używa już żaden wpis w localStorage.
+ * Dzięki temu kasujemy z bucketa tylko realnie osierocone pliki i nie usuniemy
+ * zdjęcia współdzielonego przez inny wpis (np. album i pojedyncze miasto wskazują
+ * ten sam plik). Uwaga: sprawdza tylko stan lokalny — plik używany wyłącznie
+ * przez wpis obecny tylko w chmurze (przed `pullAll`) nie zostanie wykryty.
+ */
+export function unreferencedPhotoPaths(candidatePaths: string[]): string[] {
+  const referenced = new Set<string>();
+  for (const entry of readRaw()) {
+    for (const photo of entry.photos ?? []) referenced.add(photo.path);
+  }
+  return candidatePaths.filter((path) => !referenced.has(path));
 }
 
 function sortByNewest(entries: Entry[]): Entry[] {
@@ -113,12 +161,16 @@ export function mergeRemoteEntries(remote: Entry[]): void {
   if (!isBrowser() || remote.length === 0) return;
   const local = readRaw();
   const byId = new Map(local.map((entry) => [entry.id, entry]));
+  // Nie wskrzeszaj wpisów usuniętych lokalnie, których kasowania w chmurze
+  // jeszcze nie potwierdzono — inaczej „znikają i wracają" po zalogowaniu.
+  const tombstones = new Set(readTombstones());
 
   const stamp = (entry: Entry): number =>
     new Date(entry.updatedAt ?? entry.createdAt).getTime();
 
   let changed = false;
   for (const incoming of remote) {
+    if (tombstones.has(incoming.id)) continue;
     const existing = byId.get(incoming.id);
     if (!existing) {
       byId.set(incoming.id, incoming);
@@ -189,9 +241,35 @@ export function updateEntry(id: string, input: EntryInput): Entry | undefined {
 export function deleteEntry(id: string): void {
   const entry = readRaw().find((e) => e.id === id);
   writeRaw(readRaw().filter((entry) => entry.id !== id));
-  deleteRemote(id);
-  // Best-effort sprzątanie zdjęć z prywatnego bucketa (no-op bez sesji).
-  if (entry?.photos?.length) void deletePhotos(entry.photos.map((p) => p.path));
+
+  // Nagrobek: chroni przed wskrzeszeniem, dopóki chmura nie potwierdzi usunięcia.
+  addTombstone(id);
+  void deleteRemote(id).then((ok) => {
+    if (ok) removeTombstone(id);
+  });
+
+  // Best-effort sprzątanie zdjęć — tylko pliki nieużywane przez inne wpisy
+  // (wpis jest już usunięty z localStorage, więc `unreferencedPhotoPaths`
+  // sprawdza pozostałe). No-op bez sesji.
+  if (entry?.photos?.length) {
+    const orphaned = unreferencedPhotoPaths(entry.photos.map((p) => p.path));
+    if (orphaned.length > 0) void deletePhotos(orphaned);
+  }
+}
+
+/**
+ * Domyka w chmurze usunięcia wykonane offline/bez sesji (po każdym z nich został
+ * „nagrobek"). Wołane przy logowaniu PRZED `pullAll`/`mergeRemoteEntries`, by
+ * baza nie odesłała z powrotem wpisów, które użytkownik już skasował. Każdy
+ * potwierdzony rekord zdejmuje swój nagrobek; nieudane zostają na kolejną próbę.
+ */
+export async function flushPendingDeletes(): Promise<void> {
+  const pending = readTombstones();
+  if (pending.length === 0) return;
+  for (const id of pending) {
+    const ok = await deleteRemote(id);
+    if (ok) removeTombstone(id);
+  }
 }
 
 export { STORAGE_KEY };
