@@ -38,6 +38,13 @@ Co już działa w aplikacji:
   UI AI ukryte przed gościem, log zużycia (`ai_usage`) + panel rozliczalności dla właściciela.
 - **Uszczelnienie (Etap 4):** sanityzacja HTML wpisów (ochrona przed XSS), **rate-limiting**
   funkcji AI z dziennym limitem widocznym w UI (ostrzeżenie + blokada), hardening bazy Supabase.
+- **Bramkowanie per plan (Etap 6):** tabela `subscriptions` + `plans.ts` (limity AI, dostępne
+  persony, głębia RAG zależne od planu), serwerowy **Stripe Checkout** (`/api/billing/checkout`)
+  i webhook (`/api/billing/webhook`) jako jedyne źródło prawdy o planie, portal klienta,
+  endpoint **raportów AI** tyg./mies. (`/api/reports`). Stronę biznesową opisuje `MONETYZACJA.md`.
+- **Uszczelnienie płatności (Etap 7):** `userId` z zaufanego JWT (nie z URL-a), mapowanie planu
+  po `price_id`, webhook weryfikuje istnienie konta; walidacja pliku audio (`/api/transcribe`),
+  twarde granice `/api/search`, nagłówki bezpieczeństwa HTTP (HSTS, `X-Frame-Options: DENY`, …).
 
 Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3 — w tym 8.6 wyszukiwanie semantyczne),
 9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa), 12 (Etap 5 — zdjęcia),
@@ -632,47 +639,95 @@ osobno w **`MONETYZACJA.md`** — tu opisujemy stronę techniczno-produktową.
 
 ## 14. Etap 7 — Uszczelnienie płatności i drugi audyt OWASP (zrealizowane)
 
-Cel etapu: drugi przegląd pod kątem najpopularniejszych ataków webowych — ze szczególnym
-naciskiem na **płatności i dostęp do kupionych funkcji**. Audyt potwierdził, że rdzeń jest
-solidny (RLS na wszystkich tabelach, brak IDOR — serwisy filtrują po `user_id`, PAT jako
-SHA-256 z 256-bitowej entropii, brak CSRF — auth przez nagłówek `Bearer`, doradcy
-bezpieczeństwa Supabase czyści). Domknięto jedną podatność **MEDIUM** w płatnościach i trzy
-mniejsze braki. Całość pokryta testami Vitest (łącznie **108**), typecheck i lint zielone.
+**Cel etapu:** drugi, celowany przegląd bezpieczeństwa po wejściu warstwy płatnej (Etap 6).
+Punkt ciężkości — **pieniądze i dostęp do kupionych funkcji**: skoro od planu zależy teraz, kto
+płaci i co dostaje, ścieżka „klient → Stripe → aktywacja planu" stała się najbardziej wrażliwym
+obszarem aplikacji. Zakres: ponowne przejście przez listę OWASP Top 10 pod kątem nowych tras
+billingowych oraz dotychczasowych endpointów AI przyjmujących dane od klienta.
 
-### 14.1 Płatności — userId z sesji, nie z URL-a (podatność MEDIUM)
-- **Problem:** statyczne Payment Links doklejały `?client_reference_id=<userId>` w przeglądarce.
-  userId pochodził z danych kontrolowanych przez klienta — można było podmienić UUID i po
-  opłaconej transakcji aktywować plan na **cudze lub nieistniejące** konto.
-- **Naprawa (dwuwarstwowa):** (1) serwerowy `/api/billing/checkout` bierze userId z **sesji JWT**
-  (sekcja 13.3); (2) webhook weryfikuje **istnienie konta** (`getUserById`) przed zapisem i ustala
-  plan z `metadata.tier`/`price_id` zamiast samej kwoty. **Zweryfikowane end-to-end** w trybie
-  testowym Stripe: zakup kartą `4242…` zapisał `tier=pro` na właściwe konto.
+**Wynik audytu — rdzeń solidny.** Potwierdzono fundamenty z Etapu 4: RLS na wszystkich tabelach,
+brak IDOR (serwisy danych filtrują po `user_id` z sesji), PAT jako SHA-256 z 256-bitowej entropii,
+brak wektora CSRF (autoryzacja nagłówkiem `Bearer`, nie ciasteczkiem), doradcy bezpieczeństwa
+Supabase bez ostrzeżeń. **Domknięto jedną podatność `MEDIUM`** (płatności) i **trzy braki
+hardeningu** (audio, wyszukiwanie, nagłówki HTTP). Wszystko pod testami: **108 testów Vitest
+zielonych** (3 nowe pliki: `stripe-prices`, `audio-validation`, `search-limits`), typecheck i lint czyste.
+
+### 14.1 Płatności — userId z zaufanej sesji, nie z URL-a (podatność `MEDIUM`)
+
+> **Podatność.** Pierwotny checkout (Etap 6) opierał się na statycznych **Payment Links** ze
+> sklejanym w przeglądarce `?client_reference_id=<userId>`. Identyfikator konta pochodził więc z
+> **danych w pełni kontrolowanych przez klienta** — atakujący mógł podstawić cudze (lub całkiem
+> zmyślone) UUID i po opłaceniu transakcji ufundować plan **obcemu albo nieistniejącemu** kontu.
+> Kategoria OWASP: **A01 Broken Access Control / A04 Insecure Design**.
+
+Naprawa jest **dwuwarstwowa** — obrona w głębi, żaden pojedynczy błąd nie wystarcza do nadużycia:
+
+1. **Serwerowy `/api/billing/checkout`** (`runtime = "nodejs"`) tworzy sesję Stripe Checkout
+   (`mode: subscription`) dopiero po autoryzacji żądania (`authenticateUser`). `client_reference_id`
+   oraz `metadata.user_id` / `metadata.tier` (na sesji **i** na subskrypcji) ustawiane są z
+   **userId odczytanego z zweryfikowanego JWT** — wejście klienta ogranicza się do `{ plan, period }`,
+   walidowanych do `pro|max` × `monthly|yearly`. Klient nie ma już żadnego wpływu na to, czyje
+   konto zostanie aktywowane.
+2. **Mapowanie planu po `price_id`, nie po kwocie** (`src/lib/stripe-prices.ts`): `priceIdFor`
+   (tier+okres → Price ID) i `tierForPriceId` (Price ID → tier) czytają 4 zmienne **serwerowe**
+   `STRIPE_PRICE_{PRO,MAX}_{MONTHLY,YEARLY}`. Brak skonfigurowanej ceny ⇒ `null` ⇒ endpoint zwraca
+   **503** (bezpieczna degradacja — nigdy nie zgadujemy planu). `price_id` jest odporny na kupony
+   i promocje zmieniające kwotę końcową, których stary `tierForAmount` nie odróżniał.
+3. **Webhook `/api/billing/webhook`** (jedyne źródło prawdy o planie) na `checkout.session.completed`
+   weryfikuje **istnienie konta** (`auth.admin.getUserById`) przed jakimkolwiek zapisem, a tier
+   ustala **wg malejącej pewności**: `metadata.tier` (z naszego serwerowego Checkout) →
+   `tierForPriceId(price_id)` → legacy `tierForAmount(amount_total)`. Gdy żadne źródło nie daje
+   planu — pomija zdarzenie zamiast zgadywać.
+
+**Zweryfikowane end-to-end** w trybie testowym Stripe: zakup kartą `4242…` zapisał `tier=pro` na
+właściwe konto; próba z podstawionym/nieistniejącym UUID nie aktywuje żadnego planu.
 
 ### 14.2 Walidacja pliku audio (`/api/transcribe`)
-- Przed wysłaniem do Groq sprawdzamy **rozmiar** (≤ 25 MB → `413`) i **typ MIME** (musi być
-  `audio/*` → inaczej `400`). Czysta funkcja `src/lib/audio-validation.ts` (`validateAudioFile`),
-  pokryta testami — zamyka nadużycie kredytów przez wielkie/nie-audio pliki.
+
+Endpoint transkrypcji przyjmował dowolny plik i słał go prosto do Groq Whisper — zalogowany
+użytkownik mógł palić kredyty właściciela wielkimi lub nie-audio plikami. Czysta funkcja
+`validateAudioFile` (`src/lib/audio-validation.ts`, testowalna bez `Request`/`Response`) zamyka to
+**przed** wysyłką do Groq:
+- **rozmiar** > 25 MB (`MAX_AUDIO_BYTES`, zgodny z limitem Whisper) → **413**;
+- **typ MIME** ustawiony, ale spoza `audio/*` → **400**. **Pusty `type` jest świadomie
+  przepuszczany** — `MediaRecorder` w części przeglądarek nie ustawia MIME przy nagraniu, więc
+  twarde odrzucenie psułoby legalną dyktację głosu.
 
 ### 14.3 Twarde granice wyszukiwania (`/api/search`)
-- `limit` i `recentDays` z ciała żądania były przekazywane wprost do RPC/okna dat bez górnej
-  granicy. `normalizeSearchLimits` (w `services/search.ts`) zaciska je do `limit ∈ [1, 100]`,
-  `recentDays ∈ [1, 90]` (odrzuca `NaN`/`Infinity`/ułamki) — bezpiecznik anty-nadużycie zasobów.
+
+`limit` i `recentDays` z ciała żądania trafiały wprost do parametru RPC `hybrid_search` oraz do
+okna dat — bez sufitu klient mógł poprosić o ogromny `match_count` albo absurdalnie szerokie okno,
+obciążając bazę i pgvector. `normalizeSearchLimits` (`services/search.ts`, eksport pod testy)
+zaciska je przez `clampInt`: `limit ∈ [1, 100]` (domyślnie 30), `recentDays ∈ [1, 90]` (domyślnie 7).
+Wartości spoza zbioru skończonych liczb (`NaN`, `Infinity`, `undefined`) wpadają na bezpieczny
+domyślny, ułamki są obcinane (`Math.trunc`). Bezpiecznik **A04: Resource Exhaustion**.
 
 ### 14.4 Nagłówki bezpieczeństwa HTTP (`next.config.ts`)
-- Dla **wszystkich tras** wysyłamy: `Strict-Transport-Security`, **`X-Frame-Options: DENY`**
-  (koniec z clickjackingiem), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
-  strict-origin-when-cross-origin` oraz `Permissions-Policy: camera=(), microphone=(self),
-  geolocation=()` (mikrofon dopuszczony dla własnej domeny — wymaga go transkrypcja głosu).
-- **CSP świadomie odłożona** — wymaga osobnego dostrojenia pod inline-skrypty Next, three.js na
-  landingu i inline-skrypt motywu; `X-Frame-Options: DENY` i tak daje pełną ochronę przed osadzaniem.
 
-### 14.5 Pozycje zaakceptowane (bez zmian)
-- **HaveIBeenPwned** (`auth_leaked_password_protection`) — wymaga planu Supabase **Pro**
-  (projekt na FREE); przy wymuszonej złożoności haseł akceptowalne.
-- **Prompt injection w RAG** — treść wpisów trafia jako kontekst do modelu; inherentne dla RAG,
-  nie jest wyciekiem danych (kontekst = własne wpisy użytkownika).
+Domknięcie **A05 Security Misconfiguration**: dla **wszystkich tras** (`source: "/:path*"`)
+ustawiamy pięć nagłówków:
+- **`Strict-Transport-Security`** (`max-age` 2 lata, `includeSubDomains; preload`) — wymuszenie
+  HTTPS; ignorowane na `http://localhost`, więc bezpieczne lokalnie;
+- **`X-Frame-Options: DENY`** — zakaz osadzania w obcych ramkach, koniec z clickjackingiem;
+- **`X-Content-Type-Options: nosniff`** — bez zgadywania typu treści (anty MIME-sniffing);
+- **`Referrer-Policy: strict-origin-when-cross-origin`** — pełny URL nie wycieka do obcych domen;
+- **`Permissions-Policy: camera=(), microphone=(self), geolocation=()`** — mikrofon tylko dla
+  własnej domeny (wymaga go transkrypcja głosu), kamera i geolokalizacja wyłączone (zdjęcia idą
+  zwykłym `input[type=file]`).
+
+**CSP świadomie odłożona** — wymaga osobnego, ostrożnego dostrojenia pod inline-skrypty Next,
+three.js na landingu i inline-skrypt motywu w `<head>`; zbyt ciasna polityka wywróciłaby aplikację.
+`X-Frame-Options: DENY` i tak daje pełną ochronę przed osadzaniem.
+
+### 14.5 Pozycje świadomie zaakceptowane (bez zmian)
+
+Ryzyka rozpoznane i ocenione jako akceptowalne — udokumentowane, by nie wracać do nich jako do „luk":
+- **HaveIBeenPwned** (`auth_leaked_password_protection`) — ochrona haseł z wycieków wymaga planu
+  Supabase **Pro**; projekt jest na **FREE**, a przy wymuszonej złożoności haseł (Etap 4) ryzyko jest niskie.
+- **Prompt injection w RAG** — treść wpisów trafia jako kontekst do modelu; inherentne dla RAG i
+  **nie jest wyciekiem danych** (kontekst = własne wpisy zalogowanego użytkownika).
 - **PAT hashowany SHA-256 bez saltu** — bezpieczne dla tokenów o 256-bitowej entropii losowej
-  (świadomy wybór, nie pomyłka — hasła wymagałyby KDF).
+  (świadomy wybór: salt/KDF chroni hasła o niskiej entropii, nie losowe tokeny).
 
 ---
 
