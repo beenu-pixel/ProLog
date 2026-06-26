@@ -1,18 +1,15 @@
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { recentDaysRangeUtc } from "@/lib/api-day";
-import { rowToEntry, type EntryRow } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
-import { backfillEmbeddingsForUser, embedText } from "@/lib/services/embeddings";
+import { embedText } from "@/lib/services/embeddings";
+import { matchEntries, recentEntryRefs } from "@/lib/services/entry-index";
+import { getEntriesByLocalIds } from "@/lib/services/cms-entries";
 import type { Entry } from "@/lib/types";
 
-// Wyszukiwanie hybrydowe: top-N z wyszukiwania wektorowego + top-N z full-text,
-// scalone w bazie fuzją RRF (funkcja public.hybrid_search), plus warstwa kontekstu
-// czasowego — ZAWSZE dołączane wpisy z ostatnich N dni (domyślnie 7), nawet jeśli nie
-// pasują tematycznie. Ten sam serwis zasila wyszukiwarkę UI i agenta (RAG, Faza 4).
-//
-// Scalanie okna „ostatnich dni" z wynikami searcha robimy tutaj (TS), nie w SQL — funkcja
-// RPC zostaje prosta, a my mamy pełną kontrolę nad strukturą zwracaną i tagowaniem źródła.
-// Wołane kluczem sekretnym (pomija RLS), więc wszędzie jawnie filtrujemy po `userId`.
+// Wyszukiwanie dla RAG i wyszukiwarki UI po przejściu na Strapi jako źródło prawdy:
+//  - WEKTOR: indeks `entry_index` w Supabase (embedding + link) → RPC `match_entries`,
+//  - RECENCY: zawsze dołączane wpisy z ostatnich N dni (po `entry_date` z indeksu),
+//  - TREŚĆ: dociągana ze Strapi po `localId` (źródło prawdy).
+// Część leksykalna (full-text) hybrydy została wycofana wraz z migracją — zostaje
+// wyszukiwanie wektorowe. Ten sam serwis zasila wyszukiwarkę UI i agenta (RAG).
 
 /** Skąd pochodzi wpis w wynikach: z wyszukiwania, z okna ostatnich dni, lub z obu. */
 export type SearchSource = "search" | "recent" | "both";
@@ -24,19 +21,20 @@ export interface SearchHit {
 }
 
 export interface HybridSearchOptions {
-  /** Ile wpisów zwraca RPC (top-K po RRF). Domyślnie 30. */
+  /** Ile wpisów zwraca wyszukiwanie wektorowe (top-K). Domyślnie 30. */
   limit?: number;
-  /** Szerokość okna kontekstu czasowego w dniach (Europe/Warsaw). Domyślnie 7. */
+  /** Szerokość okna kontekstu czasowego w dniach. Domyślnie 7. */
   recentDays?: number;
 }
 
 // Twarde granice zapytania — wartości z ciała żądania (/api/search) lecą wprost do
 // RPC i do okna dat, więc bez przycięcia ktoś mógłby poprosić o ogromny match_count
-// albo absurdalnie szerokie okno, obciążając bazę. Zaciskamy je do rozsądnych sufitów.
+// albo absurdalnie szerokie okno. Zaciskamy je do rozsądnych sufitów.
 const LIMIT_DEFAULT = 30;
 const LIMIT_MAX = 100;
 const RECENT_DAYS_DEFAULT = 7;
 const RECENT_DAYS_MAX = 90;
+const RECENT_LIMIT = 50;
 
 /** Przycina liczbę do [min, max]; dla wartości spoza zakresu liczb zwraca `fallback`. */
 function clampInt(value: number | undefined, fallback: number, min: number, max: number): number {
@@ -55,16 +53,11 @@ export function normalizeSearchLimits(options: HybridSearchOptions = {}): {
   };
 }
 
-// Kolumny `entries` potrzebne do zbudowania `Entry` — bez `embedding`/`fts`, by nie
-// przesyłać wektorów (1536 floatów na wiersz) ani tsvectora przez sieć.
-const ENTRY_COLUMNS =
-  "id, title, content, mood, sleep, energy, productivity, stress, photos, created_at, updated_at";
-
 /**
- * Wyszukiwanie hybrydowe dla użytkownika. Zwraca posortowaną listę `SearchHit`:
- * najpierw trafienia wyszukiwania w kolejności RRF (te będące też w oknie ostatnich
- * dni mają `source: 'both'`), potem dodatkowe wpisy z ostatnich dni (`source: 'recent'`,
- * malejąco po dacie). Bez duplikatów. Rzuca `ApiError`/`EmbeddingError`.
+ * Wyszukiwanie dla użytkownika. Zwraca posortowaną listę `SearchHit`: najpierw
+ * trafienia wektorowe (te będące też w oknie ostatnich dni mają `source: 'both'`),
+ * potem dodatkowe wpisy z ostatnich dni (`source: 'recent'`). Bez duplikatów.
+ * Treść wpisów dociągana ze Strapi. Rzuca `ApiError`/`EmbeddingError`.
  */
 export async function hybridSearch(
   userId: string,
@@ -74,71 +67,46 @@ export async function hybridSearch(
   if (typeof query !== "string" || query.trim() === "") {
     throw new ApiError(400, "Pole `query` jest wymagane (niepusty tekst).");
   }
-  if (!supabaseAdmin) {
-    throw new ApiError(503, "Usługa niedostępna — brak konfiguracji serwera.");
-  }
 
   const { limit, recentDays } = normalizeSearchLimits(options);
 
-  // 1) Best-effort: domknij embeddingi wpisów dodanych przez UI (mirror nie embeduje).
-  //    Gdy braków nie ma → szybki no-op. Błąd nie wywraca wyszukiwania.
-  try {
-    await backfillEmbeddingsForUser(userId);
-  } catch (err) {
-    console.error("[services/search] backfill (best-effort) failed:", err);
-  }
-
-  // 2) Embedding zapytania (rzuca EmbeddingError przy braku/awarii OPENAI_API_KEY).
+  // 1) Embedding zapytania (rzuca EmbeddingError przy braku/awarii OPENAI_API_KEY).
   const queryEmbedding = await embedText(query.trim());
 
-  // 3) Wyniki wyszukiwania (RRF) + 4) okno ostatnich dni — równolegle.
-  const { startUtc, endUtc } = recentDaysRangeUtc(recentDays);
-  const [searchRes, recentRes] = await Promise.all([
-    supabaseAdmin
-      .rpc("hybrid_search", {
-        p_user_id: userId,
-        query_text: query.trim(),
-        query_embedding: JSON.stringify(queryEmbedding),
-        match_count: limit,
-      })
-      .select(ENTRY_COLUMNS),
-    supabaseAdmin
-      .from("entries")
-      .select(ENTRY_COLUMNS)
-      .eq("user_id", userId)
-      .gte("created_at", startUtc)
-      .lt("created_at", endUtc)
-      .order("created_at", { ascending: false }),
+  // 2) Wektor (match_entries) + 3) okno ostatnich dni — równolegle (oba z indeksu Supabase).
+  const [matches, recent] = await Promise.all([
+    matchEntries(userId, queryEmbedding, limit),
+    recentEntryRefs(userId, recentDays, RECENT_LIMIT),
   ]);
 
-  if (searchRes.error) {
-    console.error("[services/search] hybrid_search rpc failed:", searchRes.error);
-    throw new ApiError(500, "Nie udało się wykonać wyszukiwania.");
-  }
-  if (recentRes.error) {
-    console.error("[services/search] recent window select failed:", recentRes.error);
-    throw new ApiError(500, "Nie udało się pobrać ostatnich wpisów.");
-  }
-
-  // 5) Merge + dedup + tag źródła. Najpierw wyniki searcha (kolejność RRF), potem
-  //    dodatkowe wpisy z okna; wpis obecny w obu dostaje `source: 'both'`.
-  const hits: SearchHit[] = [];
+  // 4) Kolejność + tag źródła: najpierw wektor (kolejność podobieństwa), potem recency.
+  const order: { localId: string; source: SearchSource }[] = [];
   const indexById = new Map<string, number>();
 
-  for (const row of (searchRes.data ?? []) as EntryRow[]) {
-    indexById.set(row.id, hits.length);
-    hits.push({ entry: rowToEntry(row), source: "search" });
+  for (const m of matches) {
+    indexById.set(m.localId, order.length);
+    order.push({ localId: m.localId, source: "search" });
   }
-
-  for (const row of (recentRes.data ?? []) as EntryRow[]) {
-    const existing = indexById.get(row.id);
+  for (const r of recent) {
+    const existing = indexById.get(r.localId);
     if (existing !== undefined) {
-      hits[existing].source = "both";
+      order[existing].source = "both";
     } else {
-      indexById.set(row.id, hits.length);
-      hits.push({ entry: rowToEntry(row), source: "recent" });
+      indexById.set(r.localId, order.length);
+      order.push({ localId: r.localId, source: "recent" });
     }
   }
 
+  if (order.length === 0) return [];
+
+  // 5) Treść ze Strapi (źródło prawdy) po localId; zachowujemy ustaloną kolejność.
+  const entries = await getEntriesByLocalIds(userId, order.map((o) => o.localId));
+  const byId = new Map(entries.map((e) => [e.id, e]));
+
+  const hits: SearchHit[] = [];
+  for (const o of order) {
+    const entry = byId.get(o.localId);
+    if (entry) hits.push({ entry, source: o.source });
+  }
   return hits;
 }

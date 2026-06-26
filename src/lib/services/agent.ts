@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidDayKey, todayWarsaw } from "@/lib/api-day";
-import { rowToEntry, type EntryRow } from "@/lib/api-entry";
+import { listEntriesByUser } from "@/lib/services/cms-entries";
 import { ApiError } from "@/lib/api-error";
 import { buildJournalContext, buildJournalContextFromHits } from "@/lib/therapist-context";
 import { FREUD } from "@/lib/therapists";
@@ -74,17 +74,14 @@ export async function askAgent(
     const hits = await hybridSearch(userId, question, { recentDays: 7 });
     journalContext = buildJournalContextFromHits(hits);
   } catch (err) {
-    console.error("[services/agent] hybrid search failed — fallback to full journal:", err);
-    const { data: entryRows, error: entriesError } = await supabaseAdmin!
-      .from("entries")
-      .select("*")
-      .eq("user_id", userId);
-    if (entriesError) {
-      console.error("[services/agent] entries select failed:", entriesError);
+    console.error("[services/agent] hybrid search failed — fallback to full journal (Strapi):", err);
+    try {
+      const entries = await listEntriesByUser(userId);
+      journalContext = buildJournalContext(entries);
+    } catch (err2) {
+      console.error("[services/agent] strapi full journal failed:", err2);
       throw new ApiError(500, "Nie udało się pobrać dziennika.");
     }
-    const entries = (entryRows as EntryRow[]).map(rowToEntry);
-    journalContext = buildJournalContext(entries);
   }
 
   // Historia rozmowy z tego dnia (per dzień).

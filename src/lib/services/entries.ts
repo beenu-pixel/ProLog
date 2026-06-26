@@ -1,16 +1,14 @@
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidDayKey, todayWarsaw, noonUtcForDay, dayRangeUtc } from "@/lib/api-day";
-import { deriveTitle, rowToEntry, type EntryRow } from "@/lib/api-entry";
+import { deriveTitle } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
-import { buildEmbeddingInput, embedText } from "@/lib/services/embeddings";
 import { sanitizeEntryHtml } from "@/lib/sanitize";
-import type { Entry, MetricKey } from "@/lib/types";
+import { upsertEntry, getEntriesByDateRange } from "@/lib/services/cms-entries";
+import { upsertEntryIndex } from "@/lib/services/entry-index";
+import type { Entry, MetricKey, Scale } from "@/lib/types";
 
-// Serwis wpisów — jedna implementacja używana przez REST (/api/v1/entries)
-// i przez narzędzia MCP. Wejście przyjmujemy jako luźny rekord i walidujemy
-// tutaj, więc oba wywołujące zachowują się identycznie (te same kody/komunikaty).
-// Wymaga skonfigurowanego service-role — wołające najpierw uwierzytelniają,
-// więc `supabaseAdmin` jest tu gwarantowanie dostępny.
+// Serwis wpisów — jedna implementacja używana przez REST (/api/v1/entries) i MCP.
+// Po migracji ŹRÓDŁEM PRAWDY jest Strapi: zapis idzie do Strapi (upsert po localId),
+// a do Supabase trafia tylko indeks wektorowy (embedding + link) — best-effort.
 
 const METRIC_KEYS: MetricKey[] = [
   "sleep",
@@ -29,9 +27,9 @@ function parseScale(value: unknown): number | null | false {
 }
 
 /**
- * Tworzy nowy wpis dla użytkownika. Domyślnie na dziś (Europe/Warsaw); tytuł
- * generowany z treści. Rzuca `ApiError` przy złych danych (400) lub błędzie
- * zapisu (500).
+ * Tworzy nowy wpis dla użytkownika (źródło prawdy = Strapi). Domyślnie na dziś
+ * (Europe/Warsaw); tytuł generowany z treści. Rzuca `ApiError` przy złych danych
+ * (400) lub błędzie zapisu (502).
  */
 export async function createEntry(
   userId: string,
@@ -55,60 +53,47 @@ export async function createEntry(
   }
 
   // Metryki — każda opcjonalna, w skali 1–5.
-  const metrics: Partial<Record<MetricKey, number>> = {};
+  const metrics: Partial<Record<MetricKey, Scale>> = {};
   for (const key of METRIC_KEYS) {
     const parsed = parseScale(input[key]);
     if (parsed === false) {
       throw new ApiError(400, `Pole \`${key}\` musi być liczbą całkowitą 1–5.`);
     }
-    if (parsed !== null) metrics[key] = parsed;
+    if (parsed !== null) metrics[key] = parsed as Scale;
   }
 
-  const row = {
-    // Tabela `entries` nie ma DEFAULT na `id` (UUID nadaje klient/serwer).
+  const entry: Entry = {
     id: crypto.randomUUID(),
-    user_id: userId,
     title: deriveTitle(content),
     content,
-    created_at: noonUtcForDay(day),
+    createdAt: noonUtcForDay(day),
     ...metrics,
   };
 
-  const { data, error } = await supabaseAdmin!
-    .from("entries")
-    .insert(row)
-    .select("*")
-    .single();
-
-  if (error || !data) {
-    console.error("[services/entries] insert failed:", error);
-    throw new ApiError(500, "Nie udało się zapisać wpisu.");
-  }
-
-  const saved = data as EntryRow;
-
-  // Embedding (best-effort): nowy wpis dostaje wektor od razu. Błąd embeddingu
-  // (brak/nieczynny OPENAI_API_KEY itp.) NIE wywraca tworzenia wpisu — backfill
-  // dobierze brakujące wektory później.
+  let saved;
   try {
-    const vector = await embedText(buildEmbeddingInput(saved.title, saved.content));
-    const { error: embedError } = await supabaseAdmin!
-      .from("entries")
-      .update({ embedding: JSON.stringify(vector) })
-      .eq("id", saved.id);
-    if (embedError) {
-      console.error("[services/entries] embedding update failed:", embedError);
-    }
+    saved = await upsertEntry(userId, entry);
   } catch (err) {
-    console.error("[services/entries] embedding failed:", err);
+    console.error("[services/entries] strapi upsert failed:", err);
+    throw new ApiError(502, "Nie udało się zapisać wpisu.");
   }
 
-  return rowToEntry(saved);
+  // Indeks wektorowy (embedding + link) — best-effort, nie wywraca zapisu.
+  await upsertEntryIndex({
+    localId: saved.id,
+    strapiDocId: saved.strapiDocId,
+    userId,
+    title: saved.title,
+    content: saved.content,
+    entryDate: saved.createdAt,
+  });
+
+  return saved;
 }
 
 /**
- * Zwraca wpis(y) użytkownika z danego dnia (Europe/Warsaw). Rzuca `ApiError`
- * przy złym formacie daty (400) lub błędzie odczytu (500).
+ * Zwraca wpis(y) użytkownika z danego dnia (Europe/Warsaw) ze Strapi. Rzuca
+ * `ApiError` przy złym formacie daty (400) lub błędzie odczytu (502).
  */
 export async function getEntriesForDay(
   userId: string,
@@ -119,18 +104,11 @@ export async function getEntriesForDay(
   }
 
   const { startUtc, endUtc } = dayRangeUtc(date);
-  const { data, error } = await supabaseAdmin!
-    .from("entries")
-    .select("*")
-    .eq("user_id", userId)
-    .gte("created_at", startUtc)
-    .lt("created_at", endUtc)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("[services/entries] select failed:", error);
-    throw new ApiError(500, "Nie udało się pobrać wpisów.");
+  try {
+    const entries = await getEntriesByDateRange(userId, startUtc, endUtc);
+    return { date, entries };
+  } catch (err) {
+    console.error("[services/entries] strapi read failed:", err);
+    throw new ApiError(502, "Nie udało się pobrać wpisów.");
   }
-
-  return { date, entries: (data as EntryRow[]).map(rowToEntry) };
 }

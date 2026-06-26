@@ -1,78 +1,37 @@
 import { supabase, isConfigured } from "@/lib/supabase";
 import { isSeedEntry } from "@/lib/seed";
-import type { Entry, EntryPhoto } from "@/lib/types";
+import type { Entry } from "@/lib/types";
 
 /**
  * Warstwa „mirror": localStorage pozostaje reaktywnym źródłem prawdy dla UI,
- * a każdy zapis jest dodatkowo wypychany do Supabase pod `user_id` zalogowanego
- * użytkownika. Wszystkie funkcje są fire-and-forget — nigdy nie blokują UI ani
- * nie rzucają wyjątkiem. Gdy brak konfiguracji lub sesji, są no-opem.
+ * a każdy zapis jest dodatkowo synchronizowany ze **Strapi** (źródło prawdy treści)
+ * przez serwerowe route'y `/api/cms/entries`. Token Strapi zostaje na serwerze —
+ * klient uwierzytelnia się sesją Supabase (JWT w nagłówku Authorization).
+ *
+ * Wszystkie funkcje są best-effort — nigdy nie blokują UI ani nie rzucają wyjątkiem.
+ * Gdy brak konfiguracji/sesji, są no-opem (UX offline-first działa dalej lokalnie).
  */
 
-/** Surowy wiersz tabeli `public.entries` (snake_case, metryki mogą być null). */
-interface EntryRow {
-  id: string;
-  title: string;
-  content: string;
-  mood: number | null;
-  sleep: number | null;
-  energy: number | null;
-  productivity: number | null;
-  stress: number | null;
-  photos: EntryPhoto[] | null;
-  created_at: string;
-  updated_at: string | null;
-}
-
-/** Mapuje wiersz bazy na `Entry` (null → undefined, snake_case → camelCase). */
-function fromRow(row: EntryRow): Entry {
-  return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    mood: row.mood ?? undefined,
-    sleep: row.sleep ?? undefined,
-    energy: row.energy ?? undefined,
-    productivity: row.productivity ?? undefined,
-    stress: row.stress ?? undefined,
-    photos: row.photos ?? [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at ?? undefined,
-  } as Entry;
-}
-
-/** Wiersz tabeli `public.entries` (snake_case + user_id z sesji). */
-function toRow(entry: Entry, userId: string) {
-  return {
-    id: entry.id,
-    user_id: userId,
-    title: entry.title,
-    content: entry.content,
-    mood: entry.mood ?? null,
-    sleep: entry.sleep ?? null,
-    energy: entry.energy ?? null,
-    productivity: entry.productivity ?? null,
-    stress: entry.stress ?? null,
-    photos: entry.photos ?? [],
-    created_at: entry.createdAt,
-    updated_at: entry.updatedAt ?? null,
-  };
-}
-
-/** Id zalogowanego użytkownika lub null (brak sesji / konfiguracji). */
-async function currentUserId(): Promise<string | null> {
+/** Nagłówki z tokenem sesji Supabase albo `null` (brak sesji/konfiguracji). */
+async function authHeaders(): Promise<Record<string, string> | null> {
   if (!isConfigured || !supabase) return null;
   const { data } = await supabase.auth.getSession();
-  return data.session?.user.id ?? null;
+  const token = data.session?.access_token;
+  if (!token) return null;
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
-/** Wypycha pojedynczy wpis (upsert po kluczu głównym `id`). */
+/** Wypycha pojedynczy wpis do Strapi (upsert po `localId` po stronie serwera). */
 export function pushEntry(entry: Entry): void {
   void (async () => {
     try {
-      const userId = await currentUserId();
-      if (!userId) return;
-      await supabase!.from("entries").upsert(toRow(entry, userId));
+      const headers = await authHeaders();
+      if (!headers) return;
+      await fetch("/api/cms/entries", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ entries: [entry] }),
+      });
     } catch {
       // Mirror to najlepszy wysiłek — błąd sieci nie może psuć zapisu lokalnego.
     }
@@ -80,58 +39,59 @@ export function pushEntry(entry: Entry): void {
 }
 
 /**
- * Usuwa wpis z bazy (RLS i tak ogranicza do własnych wierszy). Zwraca `true`,
- * gdy usunięcie zostało potwierdzone przez bazę; `false` przy braku sesji/
- * konfiguracji lub błędzie sieci. Wołający (storage) używa tego, by zdjąć
- * „nagrobek" dopiero po potwierdzeniu — inaczej usunięty wpis mógłby wrócić
- * przy następnym `pullAll`/`mergeRemoteEntries`.
+ * Usuwa wpis w Strapi. Zwraca `true`, gdy usunięcie potwierdzone; `false` przy
+ * braku sesji/konfiguracji lub błędzie. Wołający (storage) zdejmuje „nagrobek"
+ * dopiero po potwierdzeniu — inaczej usunięty wpis mógłby wrócić przy `pullAll`.
  */
 export async function deleteRemote(id: string): Promise<boolean> {
   try {
-    const userId = await currentUserId();
-    if (!userId) return false;
-    const { error } = await supabase!.from("entries").delete().eq("id", id);
-    return !error;
+    const headers = await authHeaders();
+    if (!headers) return false;
+    const res = await fetch(`/api/cms/entries/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers,
+    });
+    return res.ok;
   } catch {
-    // jw. — usunięcie lokalne już się powiodło; chmurę dogonimy przy logowaniu.
     return false;
   }
 }
 
 /**
- * Pobiera wszystkie wpisy zalogowanego użytkownika z bazy. Best-effort: przy
- * braku sesji/konfiguracji lub błędzie sieci zwraca pustą listę (nigdy nie
- * rzuca). Używane przy logowaniu, by localStorage dogonił stan z chmury.
+ * Pobiera wszystkie wpisy zalogowanego użytkownika ze Strapi. Best-effort: przy
+ * braku sesji/konfiguracji lub błędzie zwraca pustą listę (nigdy nie rzuca).
+ * Używane przy logowaniu/odświeżeniu, by localStorage dogonił stan z chmury
+ * (również wpisy dodane bezpośrednio w panelu Strapi).
  */
 export async function pullAll(): Promise<Entry[]> {
   try {
-    const userId = await currentUserId();
-    if (!userId) return [];
-    const { data, error } = await supabase!
-      .from("entries")
-      .select("*")
-      .eq("user_id", userId);
-    if (error || !data) return [];
-    return (data as EntryRow[]).map(fromRow);
+    const headers = await authHeaders();
+    if (!headers) return [];
+    const res = await fetch("/api/cms/entries", { method: "GET", headers });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { entries?: Entry[] };
+    return json.entries ?? [];
   } catch {
     return [];
   }
 }
 
 /**
- * Bulk-upsert wszystkich wpisów — wołane po zalogowaniu, by baza dogoniła stan
- * lokalny. Pomija wpisy-seedy (wypełniacz demonstracyjny) — te nie należą do
- * konta użytkownika i nie powinny trafiać do bazy.
+ * Bulk-upsert wszystkich wpisów — wołane po zalogowaniu, by Strapi dogonił stan
+ * lokalny. Pomija wpisy-seedy (wypełniacz demonstracyjny) — nie należą do konta.
  */
 export function pushAll(entries: Entry[]): void {
   const real = entries.filter((entry) => !isSeedEntry(entry));
   if (real.length === 0) return;
   void (async () => {
     try {
-      const userId = await currentUserId();
-      if (!userId) return;
-      const rows = real.map((entry) => toRow(entry, userId));
-      await supabase!.from("entries").upsert(rows);
+      const headers = await authHeaders();
+      if (!headers) return;
+      await fetch("/api/cms/entries", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ entries: real }),
+      });
     } catch {
       // jw.
     }

@@ -1,6 +1,5 @@
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import { recentDaysRangeUtc } from "@/lib/api-day";
-import { rowToEntry, type EntryRow } from "@/lib/api-entry";
+import { getEntriesByDateRange } from "@/lib/services/cms-entries";
 import { buildJournalContext } from "@/lib/therapist-context";
 import { ApiError } from "@/lib/api-error";
 import type { ReportPeriod } from "@/lib/plans";
@@ -19,9 +18,6 @@ const PERIOD_LABEL: Record<ReportPeriod, string> = {
   week: "ostatni tydzień",
   month: "ostatni miesiąc",
 };
-
-const ENTRY_COLUMNS =
-  "id, title, content, mood, sleep, energy, productivity, stress, photos, created_at, updated_at";
 
 const SYSTEM_PROMPT = `Jesteś wnikliwym, ciepłym analitykiem dziennika ProLog. Tworzysz dla użytkownika osobisty raport za wskazany okres na podstawie jego wpisów. Piszesz po polsku, zwracasz się na „ty".
 
@@ -55,25 +51,14 @@ export async function generateReport(
   userId: string,
   period: ReportPeriod
 ): Promise<ReportResult> {
-  if (!supabaseAdmin) {
-    throw new ApiError(503, "Usługa niedostępna — brak konfiguracji serwera.");
-  }
-
   const { startUtc, endUtc } = recentDaysRangeUtc(PERIOD_DAYS[period]);
-  const { data, error } = await supabaseAdmin
-    .from("entries")
-    .select(ENTRY_COLUMNS)
-    .eq("user_id", userId)
-    .gte("created_at", startUtc)
-    .lt("created_at", endUtc)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("[services/reports] pobranie wpisów nieudane:", error);
-    throw new ApiError(500, "Nie udało się pobrać wpisów do raportu.");
+  let entries;
+  try {
+    entries = await getEntriesByDateRange(userId, startUtc, endUtc);
+  } catch (err) {
+    console.error("[services/reports] pobranie wpisów (Strapi) nieudane:", err);
+    throw new ApiError(502, "Nie udało się pobrać wpisów do raportu.");
   }
-
-  const entries = (data ?? []).map((row) => rowToEntry(row as EntryRow));
 
   if (entries.length === 0) {
     return {
