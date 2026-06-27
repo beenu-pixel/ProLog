@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // `server-only` to znacznik bundlera Next — w node/vitest nie istnieje, więc stub.
+      "server-only": path.resolve(__dirname, "src/lib/__tests__/server-only-stub.ts"),
     },
   },
 });
