@@ -74,6 +74,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       capture_exceptions: true, // error tracking
       autocapture: true, // potrzebne do heatmap i auto-zdarzeń
       capture_heatmaps: true,
+      // Maskowanie autocapture (opcje top-level): NIE zapisujemy tekstu ani wartości
+      // atrybutów klikanych elementów, żeby treść wpisów dziennika nie wyciekała do
+      // właściwości zdarzeń. Heatmapy działają dalej (liczą się pozycje kliknięć).
+      mask_all_text: true,
+      mask_all_element_attributes: true,
       // Prywatność nagrań sesji: maskuj WSZYSTKIE pola i tekst (wrażliwe treści dziennika).
       session_recording: {
         maskAllInputs: true,
