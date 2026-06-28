@@ -561,8 +561,10 @@ Cel etapu: dziennik przestaje być wyłącznie tekstowy — wpis może nieść z
 same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *poza zakresem*.
 
 ### 12.1 Model i przechowywanie
-- Wpis ma kolumnę **`entries.photos`** (`jsonb`, domyślnie `[]`), mirrorowaną w `localStorage`
-  i Supabase (`sync.ts`). Typ `EntryPhoto { id, path }` (`src/lib/types.ts`).
+- Wpis przechowuje listę zdjęć jako `EntryPhoto { id, path }` (`src/lib/types.ts`),
+  mirrorowaną w `localStorage`. _(Od Etapu 8 linki żyją w polu `photos` (JSON) typu `Entry`
+  w **Strapi** — źródle prawdy; kolumna `entries.photos` w Supabase to backup. Pliki bez zmian
+  w Storage. Patrz 15.4.)_
 - Pliki trafiają do **prywatnego bucketa Storage `entry-photos`**, ścieżka `${userId}/${uuid}.${ext}`.
   RLS izoluje per użytkownik (`(storage.foldername(name))[1] = auth.uid()`).
 - **Kompresja przy uploadzie:** obraz jest skalowany (dłuższy bok ≤ 1600 px) i zapisywany jako
