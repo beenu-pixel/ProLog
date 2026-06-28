@@ -27,9 +27,10 @@ Co już działa w aplikacji:
 - **AI:** dyktowanie głosem (transkrypcja), cyfrowy terapeuta w **5 personach** (m.in. „Freud”)
   z przełącznikiem w stylu Gemini, sterowanie dziennikiem przez **REST API** i **serwer MCP**
   (Personal Access Token), strona `/docs`.
-- **Wyszukiwanie semantyczne (RAG):** embeddingi wpisów + **wyszukiwanie hybrydowe** (wektor +
-  full-text, łączenie RRF) z oknem „ostatnie 7 dni”; przełącznik „inteligentne wyszukiwanie”
-  w UI oraz ten sam kontekst dostarczany terapeucie/agentowi (`/api/search`).
+- **Wyszukiwanie semantyczne (RAG):** embeddingi wpisów + **wyszukiwanie wektorowe** z oknem
+  „ostatnie 7 dni”; przełącznik „inteligentne wyszukiwanie” w UI oraz ten sam kontekst dla
+  terapeuty/agenta (`/api/search`). _(Od Etapu 8 wektor żyje w indeksie `entry_index` +
+  `match_entries`, treść ze Strapi; część full-text/RRF wycofana — patrz 15.3.)_
 - **Zdjęcia wpisów (Etap 5):** opcjonalne załączniki — prywatny bucket Storage, galeria +
   lightbox pod treścią, dodawanie tylko po zalogowaniu.
 - **Publiczny landing (`/`):** czarno-biała strona startowa (popiersie Marka Aureliusza jako
@@ -296,7 +297,8 @@ kilka udogodnień przeglądania.
 - Backend oparty na **Supabase** (Postgres + Auth). Tabela `entries` przechowuje wpisy
   użytkownika (z kolumną `user_id`).
 - `localStorage` pozostaje źródłem działającym **offline**; po zalogowaniu jest
-  **mirrorowany** do Supabase.
+  **mirrorowany** do chmury. _(Od Etapu 8 źródłem prawdy wpisów jest **Strapi** — mirror idzie
+  przez serwerowy proxy `/api/cms/entries`, a tabela `entries` w Supabase to **backup**. Patrz 15.1–15.2.)_
 - **Dwukierunkowa synchronizacja przy logowaniu:** najpierw `pullAll` → `mergeRemoteEntries`
   (wciągnięcie wpisów z chmury do `localStorage`), potem `pushAll` (wypchnięcie stanu
   lokalnego z powrotem), by oba źródła się zgadzały. Best-effort — błąd sieci nie wywraca
@@ -423,6 +425,10 @@ dziennikiem, a także udostępnienie dziennika programistycznie (API + MCP).
   przykładami request/response oraz **generatorem tokenu** (Personal Access Token).
 
 ### 8.6 Wyszukiwanie semantyczne i hybrydowe (RAG)
+> **Od Etapu 8:** wektory żyją w indeksie `entry_index` (+ RPC `match_entries`), wyszukiwanie jest
+> **wektorowe**, a treść dociągana ze Strapi. Opis poniżej (`entries.embedding`, `hybrid_search`,
+> full-text/RRF) dotyczy stanu **sprzed migracji** — tabela `entries` jest teraz backupem. Patrz 15.3.
+
 - **Embeddingi wpisów:** każdy wpis ma wektor `entries.embedding` (OpenAI
   `text-embedding-3-small`, 1536 wymiarów; indeks **pgvector + HNSW**). Liczone automatycznie
   przy tworzeniu wpisu (`createEntry`); backfill wykonany dla istniejących wpisów. Klucz
