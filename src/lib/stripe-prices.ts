@@ -48,6 +48,11 @@ export function priceIdFor(
   return value ? value : null;
 }
 
+/** Nazwa zmiennej env z Price ID dla pary (plan, okres) — do diagnostyki/logów. */
+export function envKeyFor(plan: PaidTier, period: BillingPeriod): string | undefined {
+  return ENV_KEYS[plan]?.[period];
+}
+
 /**
  * Plan odpowiadający danemu Stripe Price ID (odwrotność `priceIdFor`). Przeszukuje
  * skonfigurowane ceny; `null` dla nieznanego/pustego priceId (webhook to wtedy loguje).

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   priceIdFor,
   tierForPriceId,
+  envKeyFor,
   type EnvSource,
 } from "@/lib/stripe-prices";
 
@@ -27,6 +28,15 @@ describe("priceIdFor", () => {
     expect(priceIdFor("pro", "monthly", {})).toBeNull();
     expect(priceIdFor("pro", "monthly", { STRIPE_PRICE_PRO_MONTHLY: "" })).toBeNull();
     expect(priceIdFor("pro", "monthly", { STRIPE_PRICE_PRO_MONTHLY: "   " })).toBeNull();
+  });
+});
+
+describe("envKeyFor", () => {
+  it("zwraca nazwę zmiennej env dla pary (plan, okres) — do logów diagnostycznych", () => {
+    expect(envKeyFor("pro", "monthly")).toBe("STRIPE_PRICE_PRO_MONTHLY");
+    expect(envKeyFor("pro", "yearly")).toBe("STRIPE_PRICE_PRO_YEARLY");
+    expect(envKeyFor("max", "monthly")).toBe("STRIPE_PRICE_MAX_MONTHLY");
+    expect(envKeyFor("max", "yearly")).toBe("STRIPE_PRICE_MAX_YEARLY");
   });
 });
 
