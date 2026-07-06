@@ -2,6 +2,7 @@ import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { stripe, isStripeConfigured } from "@/lib/stripe";
 import {
   priceIdFor,
+  envKeyFor,
   type BillingPeriod,
   type PaidTier,
 } from "@/lib/stripe-prices";
@@ -31,6 +32,10 @@ export async function POST(request: Request): Promise<Response> {
   if (isUserAuthError(auth)) return auth;
 
   if (!isStripeConfigured || !stripe) {
+    // Diagnostyka: bez tego zostaje samo 503 i trzeba zgadywać, że brak klucza.
+    console.warn(
+      "[billing/checkout] Brak STRIPE_SECRET_KEY — ustaw zmienną w Vercel i zdeployuj."
+    );
     return Response.json({ error: "Płatności nieskonfigurowane." }, { status: 503 });
   }
 
@@ -59,6 +64,12 @@ export async function POST(request: Request): Promise<Response> {
 
   const priceId = priceIdFor(plan, period);
   if (!priceId) {
+    // Diagnostyka: nazwij DOKŁADNĄ brakującą zmienną — inaczej na produkcji zostaje
+    // tylko lakoniczne 503 i trzeba zgadywać, której ceny brakuje.
+    console.warn(
+      `[billing/checkout] Brak Price ID (plan=${plan}, okres=${period}) — ustaw ` +
+        `zmienną ${envKeyFor(plan, period)} w Vercel i zdeployuj.`
+    );
     return Response.json(
       { error: "Wybrany plan jest chwilowo niedostępny." },
       { status: 503 }

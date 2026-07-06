@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node --use-system-ca node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "node scripts/check-env.mjs && next build",
     "start": "node --use-system-ca node_modules/next/dist/bin/next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
