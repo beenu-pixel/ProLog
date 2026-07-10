@@ -29,6 +29,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // `isomorphic-dompurify` ciągnie `jsdom`, który ma dynamiczne `require`
+  // (opcjonalne moduły). Domyślny bundling funkcji serverless na Vercelu potrafi
+  // NIE prześledzić tych zależności — wtedy import wywala się przy starcie funkcji
+  // (cold start) i cały route zwraca 500, zanim dojdzie do własnego kodu. Objawiało
+  // się to na /api/cms/entries (jedyny route sanityzujący HTML po stronie serwera).
+  // Traktując paczkę jako zewnętrzną, Next jej nie bundluje, tylko `require` z
+  // node_modules w runtime — jsdom ładuje się poprawnie. Lokalnie problemu nie było
+  // (pełne node_modules), więc reprodukcja tylko na produkcji.
+  serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
