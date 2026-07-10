@@ -6,6 +6,22 @@
  */
 const DRAFT_KEY = "prolog:entry-draft";
 
+/** Zamienia zwykły tekst z pola na prosty HTML (akapity), zgodny z edytorem
+ *  TipTap w kreatorze i widokiem szczegółu wpisu. Escape'ujemy znaki HTML. */
+export function textToHtml(text: string): string {
+  const escape = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  return text
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => `<p>${escape(block).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
 /** Zapisuje treść notatki jako wersję roboczą dla kreatora `/new`. */
 export function setDraft(content: string): void {
   if (typeof window === "undefined") return;

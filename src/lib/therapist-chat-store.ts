@@ -79,6 +79,14 @@ async function ensureLoaded(): Promise<void> {
 }
 
 /**
+ * Wczytuje historię rozmowy bez otwierania panelu — dla pełnoekranowego widoku
+ * `/chat`, który korzysta ze store'a, ale nie używa stanu `open` (desktop-only).
+ */
+export async function loadChat(): Promise<void> {
+  await ensureLoaded();
+}
+
+/**
  * Przełącza aktywną personę: zapisuje wybór (localStorage), czyści bieżącą
  * rozmowę z pamięci i wczytuje historię nowej persony. Wołane z przełącznika w
  * nagłówku czatu oraz z Ustawień.
@@ -135,7 +143,6 @@ export async function sendMessage(
   };
   messages = [...messages, userMessage];
   status = "streaming";
-  open = true;
   emit();
   persistMessage(therapistId, userMessage);
 

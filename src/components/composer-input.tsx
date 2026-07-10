@@ -14,7 +14,12 @@ import { useEntries } from "@/hooks/use-entries";
 import { useActiveContext } from "@/lib/active-context";
 import { useActiveTherapist } from "@/lib/active-therapist";
 import { buildJournalContext, buildUiContext } from "@/lib/therapist-context";
-import { setDraft } from "@/lib/entry-draft";
+import { setDraft, textToHtml } from "@/lib/entry-draft";
+import {
+  getComposerText,
+  setComposerText,
+  useComposerText,
+} from "@/lib/composer-text";
 import { playSound } from "@/lib/sound";
 import {
   sendMessage,
@@ -30,39 +35,28 @@ import {
 import { TherapistChat } from "@/components/therapist-chat";
 import { TherapistSwitcher } from "@/components/therapist-switcher";
 
-/** Zamienia zwykły tekst z pola na prosty HTML (akapity), zgodny z edytorem
- *  TipTap w kreatorze i widokiem szczegółu wpisu. Escape’ujemy znaki HTML. */
-function textToHtml(text: string): string {
-  const escape = (s: string) =>
-    s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  return text
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean)
-    .map((block) => `<p>${escape(block).replace(/\n/g, "<br>")}</p>`)
-    .join("");
-}
-
 /**
- * „Pigułka" dolnego pola kontekstowego — wspólna dla mobile i desktopu. Pełni
- * podwójną rolę: rozmowa z terapeutą (Freud) ORAZ szybkie utworzenie wpisu.
- * Po wpisaniu/nadyktowaniu tekstu widać dwie akcje: „Zapisz jako wpis"
- * (przekazuje treść do kreatora `/new`) oraz „Wyślij do Freuda". Pole działa do
- * notatek nawet, gdy rozmowa z terapeutą jest wyłączona — wtedy gateujemy tylko
- * akcję Freuda. Panel rozmowy montuje się nad polem (gdy otwarty).
+ * „Pigułka" dolnego pola kontekstowego — wspólna dla mobile i desktopu. Ma dwa
+ * tryby, a tryb wynika z KONTEKSTU (bez przełącznika):
+ * - `note` (domyślny, trasy dziennika) — szybka notatka: Enter/przycisk zapisuje
+ *   treść jako wersję roboczą i otwiera kreator `/new`; mikrofon dyktuje do pola,
+ * - `chat` (trasa `/chat`; na desktopie także otwarty panel Freuda) — wejście
+ *   rozmowy: Enter/przycisk wysyła do terapeuty.
+ * Zawsze widoczny jest dokładnie JEDEN przycisk akcji — znaczenie pola sygnalizują
+ * placeholder i ikona/kolor przycisku.
+ *
+ * Tekst pola żyje w `composer-text` (store), żeby przetrwał zmianę trasy i żeby
+ * zakładka „Nowy wpis" mogła zabrać go jako wersję roboczą.
  *
  * Bez własnego pozycjonowania — układ (fixed, odstępy) ustala `BottomBar`.
  *
- * Lewy przycisk pola: na mobile to hamburger (`NavMenu`) z całą nawigacją; na
- * desktopie zostaje ikona Bota (szybkie otwarcie/zamknięcie rozmowy z Freudem),
- * bo nawigacja jest w nagłówku.
+ * Lewy przycisk pola: na mobile hamburger (`NavMenu`) z rzadszą nawigacją; na
+ * desktopie ikona Bota — jawny przełącznik trybu (otwiera/zamyka panel rozmowy),
+ * ukryta na `/chat`, gdzie trybem rządzi trasa.
  */
-export function ComposerInput() {
+export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
   const router = useRouter();
-  const [text, setText] = useState("");
+  const text = useComposerText();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const entries = useEntries();
@@ -79,6 +73,10 @@ export function ComposerInput() {
   // (pole służy mu wyłącznie do notatki → „Zapisz jako wpis").
   const loggedIn = Boolean(session);
   const enabled = enabledPref && loggedIn;
+
+  // Tryb czatu: trasa `/chat` (mobile i desktop) LUB otwarty panel (desktop —
+  // po fazie store'ów `open` ustawia wyłącznie desktopowy przełącznik Bota).
+  const chatMode = mode === "chat" || open;
 
   // Panel trzymamy zamontowany przez czas animacji wyjścia: gdy `open` schodzi
   // do false, najpierw odtwarzamy animację (`closing`), a dopiero po niej
@@ -106,13 +104,14 @@ export function ComposerInput() {
     if (!enabled || !trimmed || status === "streaming") return;
     if (therapistLimit.blocked) return; // dzienny limit wyczerpany (przycisk i tak wyłączony)
     if (!hasTherapistConsent()) {
-      setOpen(true); // panel pokaże ekran zgody
+      // Na `/chat` ekran zgody pokazuje sama strona; na desktopie otwieramy panel.
+      if (mode !== "chat") setOpen(true);
       return;
     }
     const journalContext = buildJournalContext(entries);
     const uiContext = buildUiContext(active, entries);
     void sendMessage(trimmed, journalContext, uiContext);
-    setText("");
+    setComposerText("");
   };
 
   // Zapisuje treść pola jako wersję roboczą i przenosi do kreatora wpisu, gdzie
@@ -123,29 +122,32 @@ export function ComposerInput() {
     setDraft(textToHtml(trimmed));
     playSound("entry-new");
     setOpen(false);
-    setText("");
+    setComposerText("");
     router.push("/new");
   };
 
-  // Transkrypcja: dopisuje do pola; przy auto-send od razu wysyła do Freuda.
-  const { supported, listening, transcribing, toggle } = useTranscription((t) =>
-    setText((prev) => {
-      const combined = prev ? `${prev} ${t}` : t;
-      if (
-        isAutoSend() &&
-        enabled &&
-        hasTherapistConsent() &&
-        status !== "streaming" &&
-        !therapistLimit.blocked
-      ) {
-        const journalContext = buildJournalContext(entries);
-        const uiContext = buildUiContext(active, entries);
-        void sendMessage(combined.trim(), journalContext, uiContext);
-        return "";
-      }
-      return combined;
-    })
-  );
+  // Transkrypcja: dopisuje do pola; w trybie czatu przy auto-send od razu wysyła.
+  // Tekst czytamy przez `getComposerText()` (nie z domknięcia) — callback może
+  // odpalić długo po renderze, w którym powstał.
+  const { supported, listening, transcribing, toggle } = useTranscription((t) => {
+    const current = getComposerText();
+    const combined = current ? `${current} ${t}` : t;
+    if (
+      chatMode &&
+      isAutoSend() &&
+      enabled &&
+      hasTherapistConsent() &&
+      status !== "streaming" &&
+      !therapistLimit.blocked
+    ) {
+      const journalContext = buildJournalContext(entries);
+      const uiContext = buildUiContext(active, entries);
+      void sendMessage(combined.trim(), journalContext, uiContext);
+      setComposerText("");
+      return;
+    }
+    setComposerText(combined);
+  });
 
   // Pole rośnie do ~4 wierszy (text-sm, leading-5 ≈ 20px), dalej tekst się
   // przewija. Wysokość liczymy po każdej zmianie treści.
@@ -164,11 +166,14 @@ export function ComposerInput() {
 
   return (
     <div className="flex w-full flex-col gap-2">
-      {/* Panel rozmowy z Freudem — osobny, pływa NAD paskiem. */}
-      {enabled && mounted && <TherapistChat closing={closing} />}
+      {/* Panel rozmowy z Freudem (desktop) — pływa NAD paskiem. Na `/chat`
+          rozmowa jest treścią strony, więc panelu nie montujemy. */}
+      {enabled && mounted && mode !== "chat" && (
+        <TherapistChat closing={closing} />
+      )}
 
       {/* Ostrzeżenie o zbliżającym się / wyczerpanym dziennym limicie pytań. */}
-      {enabled && (therapistLimit.blocked || therapistLimit.nearLimit) && (
+      {enabled && chatMode && (therapistLimit.blocked || therapistLimit.nearLimit) && (
         <p className="px-3 text-center text-xs text-muted-foreground">
           {therapistLimit.blocked
             ? "Wykorzystałeś dzienny limit pytań do terapeuty. Odnowi się o północy."
@@ -187,18 +192,20 @@ export function ComposerInput() {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            submit(text);
+            if (chatMode) submit(text);
+            else saveAsEntry(text);
           }}
           className={cn(
             "flex min-h-16 w-full items-center gap-1.5 px-3 py-2.5",
             "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70"
           )}
         >
-        {/* Mobile: hamburger → menu nawigacji (zastępuje dawną ikonę AI). */}
+        {/* Mobile: hamburger → menu rzadszej nawigacji. */}
         <NavMenu className="lg:hidden" menuOrigin="left" />
 
-        {/* Desktop: szybkie otwarcie/zamknięcie rozmowy z Freudem (tylko zalogowani). */}
-        {loggedIn && (
+        {/* Desktop: jawny przełącznik trybu — otwiera/zamyka panel rozmowy.
+            Na `/chat` zbędny (trybem rządzi trasa). */}
+        {loggedIn && mode !== "chat" && (
           <button
             type="button"
             onClick={() => enabled && toggleOpen()}
@@ -219,31 +226,34 @@ export function ComposerInput() {
           ref={textareaRef}
           rows={1}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => setComposerText(event.target.value)}
           onFocus={() => {
-            // Wejście w pole = rozmowa: chowamy menu (bez planowania powrotu).
-            closeMenu({ resume: false });
-            if (enabled) setOpen(true);
+            // Wejście w pole chowa menu; trybu NIE zmienia (rządzi nim kontekst).
+            closeMenu();
           }}
           onKeyDown={(event) => {
-            // Enter wysyła do Freuda (gdy włączony), Shift+Enter = nowy wiersz.
+            // Enter = akcja bieżącego trybu; Shift+Enter = nowy wiersz.
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              if (enabled) submit(text);
+              if (chatMode) submit(text);
+              else saveAsEntry(text);
             }
           }}
           placeholder={
-            enabled
-              ? `Napisz notatkę lub zapytaj — ${therapist.name}…`
-              : "Napisz notatkę…"
+            chatMode ? `Napisz do ${therapist.name}…` : "Napisz notatkę…"
           }
-          aria-label="Notatka lub wiadomość do terapeuty"
+          aria-label={
+            chatMode
+              ? `Wiadomość do ${therapist.name}`
+              : "Notatka do nowego wpisu"
+          }
           className="hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground"
         />
 
         {/* Desktop: wybór terapeuty jak selektor modelu w czacie AI (pigułka
-            otwierana w górę). Na mobile przełącznik jest w nagłówku panelu. */}
-        {enabled && (
+            otwierana w górę) — tylko w trybie czatu. Na mobile przełącznik jest
+            w nagłówku rozmowy. */}
+        {enabled && chatMode && (
           <TherapistSwitcher
             variant="pill"
             placement="up"
@@ -252,39 +262,36 @@ export function ComposerInput() {
         )}
 
         {hasText ? (
-          <>
-            {/* Zapis jako wpis — dostępny zawsze, gdy jest tekst. */}
+          chatMode ? (
+            // Tryb czatu: wyślij do terapeuty.
             <button
-              type="button"
-              onClick={() => saveAsEntry(text)}
+              type="submit"
+              disabled={!canSendToFreud}
+              aria-label={`Wyślij do: ${therapist.name}`}
+              title={
+                therapistLimit.blocked
+                  ? "Dzienny limit pytań wykorzystany — odnowi się o północy"
+                  : `Wyślij do: ${therapist.name}`
+              }
+              className={cn(
+                "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
+                !canSendToFreud &&
+                  "cursor-not-allowed opacity-50 hover:scale-100"
+              )}
+            >
+              <SendHorizontal className="size-5" />
+            </button>
+          ) : (
+            // Tryb notatki: zapisz jako wpis (kreator `/new`).
+            <button
+              type="submit"
               aria-label="Zapisz jako wpis"
               title="Zapisz jako wpis"
-              className="flex size-11 shrink-0 items-center justify-center rounded-full border text-foreground transition-transform hover:scale-105 active:scale-95"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95"
             >
               <NotebookPen className="size-5" />
             </button>
-
-            {/* Wyślij do Freuda — tylko dla zalogowanych; aktywne, gdy rozmowa włączona. */}
-            {loggedIn && (
-              <button
-                type="submit"
-                disabled={!canSendToFreud}
-                aria-label={`Wyślij do: ${therapist.name}`}
-                title={
-                  therapistLimit.blocked
-                    ? "Dzienny limit pytań wykorzystany — odnowi się o północy"
-                    : `Wyślij do: ${therapist.name}`
-                }
-                className={cn(
-                  "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
-                  !canSendToFreud &&
-                    "cursor-not-allowed opacity-50 hover:scale-100"
-                )}
-              >
-                <SendHorizontal className="size-5" />
-              </button>
-            )}
-          </>
+          )
         ) : loggedIn ? (
           <button
             type="button"

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Loader2, Plus, Search, Sparkles } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { CustomScroll } from "@/components/custom-scroll";
@@ -13,7 +12,6 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { useAiLimit, noteFromHeaders } from "@/hooks/use-ai-limits";
 import { useSession, getAccessToken } from "@/lib/auth";
 import { searchEntries } from "@/lib/search";
-import { playSound } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 import type { Entry } from "@/lib/types";
 
@@ -110,17 +108,9 @@ export function EntryList() {
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-4 pb-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Dziennik</h1>
-          <Link
-            href="/new"
-            aria-label="Dodaj wpis"
-            onClick={() => playSound("entry-new")}
-            className="hidden size-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 lg:inline-flex"
-          >
-            <Plus className="size-5" />
-          </Link>
-        </div>
+        {/* Dodawanie wpisu ma jedną afordancję: przycisk „Nowy wpis" w nagłówku
+            aplikacji (desktop) / zakładkę na dolnym pasku (mobile). */}
+        <h1 className="text-2xl font-semibold tracking-tight">Dziennik</h1>
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">

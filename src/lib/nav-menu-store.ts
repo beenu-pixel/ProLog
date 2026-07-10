@@ -2,25 +2,15 @@
 
 import { useSyncExternalStore } from "react";
 
-import {
-  setOpen as setTherapistOpen,
-  isOpen as isTherapistOpen,
-} from "@/lib/therapist-chat-store";
-
 // Reaktywny store stanu menu nawigacji (wzorzec useSyncExternalStore, jak
-// `therapist-chat-store.ts`). Wynika z koordynacji na mobile: menu (hamburger)
-// i panel Freuda są zakotwiczone nad dolnym paskiem i nie mogą być otwarte
-// jednocześnie. Logikę wykluczania trzymamy tutaj (import jednokierunkowy do
-// store'a Freuda), więc store Freuda nie musi nic wiedzieć o menu.
+// `therapist-chat-store.ts`). Panel Freuda jest desktop-only, a menu mobile-only,
+// więc nie ma już wzajemnego wykluczania — store trzyma tylko stan otwarcia.
 
 interface NavMenuState {
   open: boolean;
 }
 
 let open = false;
-// Czy po zamknięciu menu wrócić do rozmowy z Freudem (gdy był otwarty tuż przed
-// otwarciem menu). Zerowane przy każdym zamknięciu.
-let resumeFreud = false;
 
 const listeners = new Set<() => void>();
 
@@ -34,25 +24,14 @@ function emit(): void {
 
 export function openMenu(): void {
   if (open) return;
-  // Otwarcie menu chowa Freuda; zapamiętujemy, czy był otwarty, by wrócić po zamknięciu.
-  resumeFreud = isTherapistOpen();
-  setTherapistOpen(false);
   open = true;
   emit();
 }
 
-/**
- * Zamknięcie menu. Domyślnie przywraca Freuda, jeśli był otwarty przed otwarciem
- * menu (X / backdrop / Escape = „wracam do rozmowy"). `resume: false` pomija
- * powrót — używane przy nawigacji (wybór pozycji menu, zmiana trasy).
- */
-export function closeMenu(opts?: { resume?: boolean }): void {
+export function closeMenu(): void {
   if (!open) return;
   open = false;
-  const resume = opts?.resume !== false && resumeFreud;
-  resumeFreud = false;
   emit();
-  if (resume) setTherapistOpen(true);
 }
 
 export function toggleMenu(): void {

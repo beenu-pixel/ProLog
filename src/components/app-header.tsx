@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { playSound } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 export function AppHeader() {
@@ -51,6 +52,16 @@ export function AppHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
+          {/* Akcja (nie nawigacja) — stąd wyróżniony przycisk zamiast linku
+              tekstowego; na mobile nowy wpis ma zakładkę na dolnym pasku. */}
+          <Link
+            href="/new"
+            onClick={() => playSound("entry-new")}
+            className="hidden h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-105 active:scale-95 lg:inline-flex"
+          >
+            <Plus className="size-4" strokeWidth={2.4} />
+            Nowy wpis
+          </Link>
           <AccountMenu />
           <Link
             href="/docs"

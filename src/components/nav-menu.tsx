@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   Menu,
   X,
-  NotebookText,
   BarChart3,
   Settings,
   FileText,
@@ -18,11 +17,10 @@ import { cn } from "@/lib/utils";
 import { useNavMenu, closeMenu, toggleMenu } from "@/lib/nav-menu-store";
 
 /**
- * Hamburger + menu nawigacji wysuwane w GÓRĘ nad dolnym paskiem. Zastępuje dawny
- * rząd ikon pod polem oraz ikonę AI po lewej w kompozytorze — całą nawigację
- * (Dziennik, Statystyki, Ustawienia, Dokumentacja) chowamy tu pod jedną ikoną.
- * Rozmowa z Freudem nie jest pozycją menu — jest dostępna z dolnego paska
- * (przyciski) po zalogowaniu.
+ * Hamburger + menu nawigacji wysuwane w GÓRĘ nad dolnym paskiem. Trzyma RZADZIEJ
+ * używane sekcje (Statystyki, Ustawienia, Dokumentacja) — najczęstsze cele
+ * (Dziennik, Nowy wpis, Freud) są zakładkami stałego dolnego paska
+ * (`BottomTabBar`); Freud to trasa `/chat`, nie pozycja menu.
  *
  * Komponent jest samowystarczalny (własny stan, backdrop, animacja). Renderujemy
  * go na mobile: w kompozytorze (lewy przycisk) oraz na trasach „tylko nawigacja".
@@ -36,12 +34,6 @@ interface MenuItem {
 }
 
 const ITEMS: MenuItem[] = [
-  {
-    href: "/entries",
-    label: "Dziennik",
-    icon: NotebookText,
-    isActive: (p) => p === "/" || p.startsWith("/entries"),
-  },
   {
     href: "/stats",
     label: "Statystyki",
@@ -92,8 +84,8 @@ export function NavMenu({
     }
   }, [open, mounted]);
 
-  // Zamknij po zmianie trasy (nawigacja — bez przywracania Freuda) oraz na Escape.
-  useEffect(() => closeMenu({ resume: false }), [pathname]);
+  // Zamknij po zmianie trasy (nawigacja) oraz na Escape.
+  useEffect(() => closeMenu(), [pathname]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -143,8 +135,8 @@ export function NavMenu({
             className="fixed inset-0 z-40 cursor-default bg-transparent"
           />
 
-          {/* Panel — pływa nad paskiem i wysuwa się w górę. */}
-          <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+          {/* Panel — pływa nad composerem i paskiem zakładek, wysuwa się w górę. */}
+          <div className="fixed inset-x-0 bottom-40 z-50 flex justify-center px-4">
             <div
               className={cn(
                 "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",
@@ -172,7 +164,7 @@ export function NavMenu({
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => closeMenu({ resume: false })}
+                      onClick={() => closeMenu()}
                       className={itemClass(active)}
                     >
                       <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
