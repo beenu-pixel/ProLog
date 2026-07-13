@@ -7,6 +7,7 @@ import { ComposerInput } from "@/components/composer-input";
 import { NavMenu } from "@/components/nav-menu";
 import { useSession } from "@/lib/auth";
 import { useTherapistEnabled } from "@/lib/therapist-prefs";
+import { cn } from "@/lib/utils";
 
 /**
  * Dolny obszar aplikacji (mobile-first): na samym dole stały pasek zakładek
@@ -47,7 +48,14 @@ export function BottomBar() {
     </div>
   ) : isChat && !chatAvailable ? null : (
     <div className="flex w-full justify-center">
-      <div className="pointer-events-auto w-full max-w-md lg:max-w-2xl">
+      {/* Na `/chat` composer jest szerszy (lg:max-w-3xl), by zgrać się z szerszą
+          kolumną rozmowy; w trybie notatki zostaje węższy (lg:max-w-2xl). */}
+      <div
+        className={cn(
+          "pointer-events-auto w-full max-w-md",
+          isChat ? "lg:max-w-3xl" : "lg:max-w-2xl"
+        )}
+      >
         <ComposerInput mode={isChat ? "chat" : "note"} />
       </div>
     </div>
@@ -57,17 +65,25 @@ export function BottomBar() {
   // a kolumna nie może połykać kliknięć w treść pod nią. Interaktywne elementy
   // przywracają zdarzenia przez `pointer-events-auto`.
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col">
+    // z-50: composer musi być NAD backdropem menu (z-40), żeby tap w pole/mikrofon
+    // trafiał w composer, a nie był „zjadany" na zamknięcie menu (jeden tap zamiast
+    // dwóch). Panel menu (z-55) i nakładka nagrywania (z-60) są jeszcze wyżej.
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col">
       {content && (
         <div className="peer/composer flex w-full px-4 pb-3 lg:pb-6">
           {content}
         </div>
       )}
-      {/* Klawiatura ekranowa: gdy pole ma fokus, chowamy pasek zakładek, żeby
-          nie wjeżdżał nad klawiaturę razem z kompozytorem. */}
-      <div className="peer-has-[textarea:focus]/composer:hidden">
-        <BottomTabBar />
-      </div>
+      {/* Pasek zakładek: pełnoekranowy czat (`/chat`) go NIE pokazuje — to ekran
+          „w głąb", a migoczący pasek byłby chrome nie na miejscu (wyjście jest w
+          nagłówku czatu). Na pozostałych trasach chowa się, gdy kompozytor jest
+          „aktywny": pole ma fokus (klawiatura) LUB trwa nagrywanie/transkrypcja
+          (`data-voice`) — żeby nawigacja nie wskakiwała w środku interakcji. */}
+      {!isChat && (
+        <div className="peer-has-[textarea:focus]/composer:hidden peer-has-[[data-voice]]/composer:hidden">
+          <BottomTabBar />
+        </div>
+      )}
     </div>
   );
 }

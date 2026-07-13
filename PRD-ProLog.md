@@ -45,10 +45,21 @@ Co już działa w aplikacji:
 - **Uszczelnienie płatności (Etap 7):** `userId` z zaufanego JWT (nie z URL-a), mapowanie planu
   po `price_id`, webhook weryfikuje istnienie konta; walidacja pliku audio (`/api/transcribe`),
   twarde granice `/api/search`, nagłówki bezpieczeństwa HTTP (HSTS, `X-Frame-Options: DENY`, …).
+- **Headless CMS + analityka (Etap 8):** **Strapi** (na Railwayu) jako **źródło prawdy** wpisów,
+  synchronizacja dwukierunkowa przez proxy `/api/cms/entries`; **Supabase** zdegradowany do roli
+  **indeksu wektorowego** (`entry_index`: embedding + link do Strapi), zdjęcia dalej w Supabase
+  Storage (linki w Strapi); analityka **PostHog** (nagrania + heatmapy, region EU, maskowanie treści).
+- **Nawigacja mobilna + czat (Etap 9):** stały **dolny pasek zakładek** (Dziennik / Nowy wpis /
+  Rozmowa) na mobilce, kompozytor pływa nad nim; rozmowa z terapeutą jako **pełnoekranowa trasa
+  `/chat`** (systemowy „wstecz”, wyjście „Wróć” w nagłówku); kompozytor ma **tryb z kontekstu**
+  (notatka vs czat) z jednym przyciskiem akcji; jeden wybór persony (lewy górny róg, lista przez
+  portal). Spójna zasada trybu przeniesiona na desktop (zakładki Notatka/Rozmowa nad polem).
 
 Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3 — w tym 8.6 wyszukiwanie semantyczne),
 9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa), 12 (Etap 5 — zdjęcia),
-13 (Etap 6 — monetyzacja) i 14 (Etap 7 — uszczelnienie płatności + drugi audyt OWASP).
+13 (Etap 6 — monetyzacja), 14 (Etap 7 — uszczelnienie płatności + drugi audyt OWASP),
+15 (Etap 8 — Strapi CMS, indeks wektorowy i analityka)
+i 16 (Etap 9 — nawigacja mobilna + pełnoekranowy czat).
 
 ---
 
@@ -474,7 +485,7 @@ zużycia.
 - **Rate-limiting AI:** tabela `rate_limit_hits` (RLS z jawną polityką deny-all dla
   `anon`/`authenticated` — dostęp tylko kluczem sekretnym, który omija RLS); serwis
   `src/lib/services/rate-limit.ts`; sanityzacja HTML w `src/lib/sanitize.ts`
-  (zależność `isomorphic-dompurify`).
+  (zależność `sanitize-html` — czysty parser JS, bez `jsdom`; patrz Etap 8).
 
 ---
 
@@ -491,8 +502,10 @@ wyłącznie po stronie serwera. Uzupełniono trzy obszary.
 - Treść wpisu (HTML z edytora TipTap) jest renderowana przez `dangerouslySetInnerHTML`
   i może trafić do bazy przez REST/MCP `create_entry` (pole `content` przyjmuje dowolny
   markup) — bez czyszczenia byłby to wektor **stored XSS** (np. `<img src=x onerror=…>`).
-- **`src/lib/sanitize.ts`** (`sanitizeEntryHtml`, `isomorphic-dompurify`) czyści HTML
-  whitelistą tagów zgodną z wyjściem TipTap; usuwa skrypty, atrybuty `on*`, `style`, `iframe`.
+- **`src/lib/sanitize.ts`** (`sanitizeEntryHtml`) czyści HTML whitelistą tagów zgodną z
+  wyjściem TipTap; usuwa skrypty, atrybuty `on*`, `style`, `iframe`. Silnik: **`sanitize-html`**
+  (od 2026-07-10; wcześniej `isomorphic-dompurify` — wymieniony, bo ciągnął `jsdom`, który
+  wywalał funkcje serverless na Vercelu; szczegóły w Etapie 8).
 - Wpięta **dwuwarstwowo**: przy renderze (szczegół wpisu, mobilny widok dnia — pokrywa
   każde źródło odczytu) oraz na zapisie w `createEntry` (defense in depth). Testy: `sanitize.test.ts`.
 
@@ -731,6 +744,120 @@ Ryzyka rozpoznane i ocenione jako akceptowalne — udokumentowane, by nie wraca�
 
 ---
 
+## 15. Etap 8 — Headless CMS (Strapi), indeks wektorowy i analityka (zrealizowane)
+
+Cel etapu: przenieść **źródło prawdy wpisów** do headless CMS (Strapi) hostowanego w chmurze,
+zachowując wyszukiwanie wektorowe (RAG) i nie tracąc zdjęć przy deployach. Efekt uboczny:
+uporządkowanie własności danych („jeden właściciel na informację”) — wpisy → Strapi,
+użytkownicy/wektory/zdjęcia → Supabase, płatności → Stripe.
+
+### 15.1 Strapi jako źródło prawdy (Railway)
+- **Strapi v5** postawiony na **Railwayu** (`strapi-production-4a7c.up.railway.app`, usługa `strapi`
+  + baza `Postgres`, region EU). Typ treści **`entry`** z polami dziennika (`title`, `content`,
+  `mood/sleep/energy/productivity/stress`, `entryDate`, `userId`, `localId`, `photos`).
+- Aplikacja rozmawia ze Strapi wyłącznie przez **serwerowe proxy `/api/cms/entries`** (token
+  Strapi po stronie serwera, nigdy w kliencie). Klucz deduplikacji: **`localId`** (UUID) w parze
+  z **`userId`** — to on decyduje, czyj jest wpis i czy to nowy rekord, czy aktualizacja.
+- **Synchronizacja dwukierunkowa** zweryfikowana E2E: wpis dodany w apce pojawia się w panelu
+  Strapi, a wpis utworzony w panelu Strapi (poprawny `userId` + unikalny `localId`) pojawia się
+  w dzienniku użytkownika po odświeżeniu.
+- Migracja historyczna: 212 wpisów przeniesionych ze starej tabeli Supabase `entries` (zachowanej
+  jako backup) do Strapi.
+
+### 15.2 Supabase jako indeks wektorowy (RAG bez zmian dla użytkownika)
+- Po przeniesieniu treści do Strapi Supabase pełni rolę **indeksu wektorowego**: tabela
+  **`entry_index`** trzyma `local_id`, `strapi_doc_id`, `user_id`, `embedding` (pgvector) i
+  `entry_date` — czyli **wektor + link do wpisu w Strapi**, nie samą treść.
+- Dzięki temu **wyszukiwanie hybrydowe / RAG z Etapu 3 działa dalej**: agent (terapeuta, REST,
+  MCP) buduje kontekst z najtrafniejszych wpisów, a treść dociąga ze Strapi po linku. Stan
+  spójny: 212 wpisów = 212 wierszy `entry_index`, każdy z embeddingiem i linkiem do Strapi.
+- Zdjęcia pozostają w **Supabase Storage** (bucket `entry-photos`, signed URLs), a w Strapi
+  trzymane są **tylko linki** — pliki nie znikają przy deployach Railwaya (efemeryczny FS).
+
+### 15.3 Analityka produktu — PostHog
+- Podłączony **PostHog** (region **EU**): pageviews, autocapture, **heatmapy** i **nagrania sesji**,
+  reverse proxy przez `/ingest`. Ze względu na prywatność dziennika **treść i atrybuty są
+  maskowane** w autocapture/nagraniach; `identify` po użytkowniku. Klucze w env `NEXT_PUBLIC_POSTHOG_*`.
+
+### 15.4 Naprawa 500 na proxy CMS (jsdom w serverless)
+- Po hardeningu proxy (sanityzacja treści w `/api/cms/entries`) route zaczął na produkcji zwracać
+  **500** (a nie oczekiwane 401/dane): łańcuch `isomorphic-dompurify → jsdom → html-encoding-sniffer
+  → @exodus/bytes` (ESM) wywalał `ERR_REQUIRE_ESM` w runtime serverless Vercela — awaria dotyczyła
+  każdego route’a sanityzującego wpis po stronie serwera (`/api/cms/entries`, `/api/v1/entries`, MCP).
+- **Naprawa:** `sanitize.ts` przepisany z `isomorphic-dompurify` na **`sanitize-html`** (czysty
+  parser JS, htmlparser2, **bez `jsdom`**) — działa identycznie serwerowo i w przeglądarce; whitelist
+  tagów bez zmian, testy `sanitize.test.ts` zielone. Zweryfikowane na produkcji: `/api/cms/entries`
+  zwraca teraz `401` dla niezalogowanego zamiast `500`.
+
+### 15.5 Pozycje świadomie zaakceptowane / plan
+- **Koszt Railway:** projekt na planie **Trial** (jednorazowy kredyt). Po jego wyczerpaniu usługi
+  Strapi gasną, chyba że nastąpi upgrade do płatnego planu. **Plan na przyszłość** (do wykonania na
+  sygnał): migracja Strapi z Railwaya na **darmowy hosting** (kandydat: własny NAS + Tailscale Funnel),
+  z zachowaniem architektury „źródło prawdy + indeks wektorowy”. Nie blokuje bieżącego działania.
+
+---
+
+## 16. Etap 9 — Nawigacja mobilna i pełnoekranowy czat (zrealizowane)
+
+Cel etapu: uczytelnić nawigację na mobilce (feedback z testów) i rozdzielić dwie mylące się
+role dolnego pola — **szybka notatka** vs **rozmowa z terapeutą** — bez utraty tego, co działało
+(pole i mikrofon pod kciukiem). Przy okazji ujednolicono zasadę trybu na desktopie i wybór persony.
+
+### 16.1 Stały dolny pasek zakładek (mobile)
+- **`src/components/bottom-tab-bar.tsx`** (`lg:hidden`): trzy najczęstsze cele jednym tapnięciem —
+  **Dziennik** (`/entries`), **Nowy wpis** (`/new`, akcja wyróżniona ikoną w wypełnionym kółku),
+  **Rozmowa** (`/chat`, tylko zalogowani z włączoną rozmową). Aktywna zakładka podświetlona
+  (`aria-current="page"`), pasek dokowany do krawędzi z **safe-area** (`env(safe-area-inset-bottom)`;
+  `viewportFit: "cover"` w `app/layout.tsx`).
+- Kompozytor **pływa nad paskiem** (odwrotnie niż zaparkowana wcześniej próba tab-baru nad polem).
+  Pasek **chowa się**, gdy pole ma fokus (klawiatura) lub trwa nagrywanie/transkrypcja (`data-voice`),
+  żeby nawigacja nie wskakiwała w środku interakcji.
+- Rzadsze sekcje (Statystyki, Ustawienia, Dokumentacja) zostają w menu pod **hamburgerem**
+  (`nav-menu.tsx`); Dziennik i Rozmowa opuściły menu (są zakładkami).
+
+### 16.2 Rozmowa z terapeutą jako trasa `/chat` (mobile)
+- Nowa trasa **`src/app/chat/page.tsx` → `src/components/chat-screen.tsx`**: pełnoekranowa rozmowa
+  (systemowy „wstecz”, deep-link). Nagłówek: **przełącznik persony** maks. po lewej, trwałe wyjście
+  **„Wróć”** maks. po prawej. `/chat` **nie pokazuje dolnego paska** (ekran „w skupieniu” — decyzja UX
+  po audycie heurystyk; wcześniej migoczący pasek był chrome nie na miejscu). Kolumna rozmowy szersza
+  (`max-w-3xl` ≈ 768 px, jak typowe czaty AI).
+- Gate’y dla niezalogowanego / wyłączonej rozmowy / braku zgody (`ConsentGate` współdzielony z panelem
+  desktopowym). Pole wejścia to **globalny kompozytor** w trybie czatu (jedno pole w całej apce).
+- Na **desktopie** główną ścieżką rozmowy pozostaje **pływający panel** przy kompozytorze
+  (`therapist-chat.tsx`); trasa `/chat` istnieje też na desktopie (bez wpięcia w nawigację).
+
+### 16.3 Kompozytor z trybem z kontekstu (`composer-input.tsx`)
+- Zamiast dwóch przycisków i domyślnego wysyłania do AI — **jeden tryb wynikający z kontekstu**:
+  na trasach dziennika **notatka** (Enter zapisuje wpis → kreator `/new`, placeholder „Napisz notatkę…”),
+  na `/chat` (i przy otwartym panelu na desktopie) **czat** (Enter wysyła, placeholder „Napisz do {persona}…”).
+  Zawsze **jeden** przycisk akcji; fokus pola **nie otwiera** już czatu.
+- Tekst pola trzymany w mini-store **`src/lib/composer-text.ts`** (przeżywa zmianę trasy); zakładka
+  „Nowy wpis” zabiera wpisany tekst jako wersję roboczą (`entry-draft.ts`, `setDraft`/`textToHtml`),
+  zamiast go gubić.
+- **Desktop:** jawny przełącznik trybu jako **zakładki „Notatka | Rozmowa” nad polem** (uszko karty,
+  `lg:` only) — nie zabiera polu szerokości; zastąpił mało czytelną gołą ikonę Bota.
+
+### 16.4 Jeden wybór persony + poprawki interakcji
+- **Wybór persony tylko w lewym górnym rogu** rozmowy (nagłówek `/chat` i nagłówek panelu desktopowego);
+  usunięto duplikującą pigułkę z pola. Lista (`therapist-switcher.tsx`) **wyrównana do lewej**, wąska,
+  długie imiona skracane do inicjału (+`truncate`). W panelu (kontener `overflow-hidden`) lista renderuje
+  się **przez portal** (`fixed`, liczone z triggera), więc nie jest przycinana.
+- **Mikrofon = tryb wyłączności podczas nagrywania:** pełnoekranowa, niewidoczna nakładka (portal, `z-60`)
+  przechwytuje każde tapnięcie i zamienia je w „zatrzymaj nagrywanie” — nawigacja nie otwiera się w trakcie.
+- **Warstwy z-index:** kompozytor (`z-50`) nad backdropem menu (`z-40`), panel menu `z-55`, nakładka
+  nagrywania `z-60` — dzięki temu przy otwartym menu **jeden tap** w pole/mikrofon działa od razu (koniec
+  „straconego pierwszego tapu”). Usunięto wzajemne wykluczanie menu↔Freud z `nav-menu-store.ts`.
+- **Desktop:** akcja **„Nowy wpis”** przeniesiona do przycisku w nagłówku (rozdział akcji od nawigacji);
+  usunięto zdublowany plus z listy wpisów.
+
+### 16.5 Weryfikacja
+- `typecheck` + `lint` + testy (109/109) zielone. Przeklikane **na zalogowanym koncie** (dev `localhost:3001`):
+  desktop (zakładki trybu, brak pigułki, dropdown persony przez portal — nieprzycięty, realny czat +
+  streaming odpowiedzi) oraz mobile (pasek 3 zakładek, `/chat` pełnoekranowy z „Wróć”, tryb-z-trasy).
+  Do sprawdzenia na fizycznym telefonie: safe-area i chowanie paska pod klawiaturą.
+
+---
+
 ## Changelog
 
 | Data        | Zmiana                                                                                  | Etap |
@@ -770,5 +897,15 @@ Ryzyka rozpoznane i ocenione jako akceptowalne — udokumentowane, by nie wraca�
 | 2026-06-24  | Płatności: serwerowy `/api/billing/checkout` (userId z JWT, nie z URL-a) + mapowanie po `price_id` + webhook weryfikuje istnienie konta — domknięcie podatności MEDIUM (zweryfikowane E2E w Stripe test). | 7 |
 | 2026-06-24  | Walidacja audio w `/api/transcribe` (≤25 MB, `audio/*`) + twarde granice `/api/search` (`normalizeSearchLimits`: limit≤100, dni≤90). | 7 |
 | 2026-06-24  | Nagłówki bezpieczeństwa HTTP w `next.config.ts` (HSTS, X-Frame-Options: DENY, nosniff, Referrer-Policy, Permissions-Policy). | 7 |
+| 2026-06-26  | Strapi (v5, Railway) jako źródło prawdy wpisów + integracja PostHog (nagrania/heatmapy, region EU). | 8 |
+| 2026-06-27  | PostHog: maskowanie treści i atrybutów w autocapture/nagraniach (prywatność wpisów). | 8 |
+| 2026-06-27  | Proxy `/api/cms/entries`: rate-limit + sanityzacja treści + cap rozmiaru (hardening). | 8 |
+| 2026-06-28  | Supabase jako indeks wektorowy: `entry_index` (embedding + `strapi_doc_id`); RAG dociąga treść ze Strapi po linku; 212/212 spójne. | 8 |
+| 2026-07-10  | Naprawa 500 na `/api/cms/entries`: `sanitize.ts` z `isomorphic-dompurify` → `sanitize-html` (usuwa `jsdom`/`ERR_REQUIRE_ESM` z serverless). Zweryfikowane na produkcji (401 zamiast 500). | 8 |
+| 2026-07-13  | Mobile: stały dolny pasek zakładek (Dziennik/Nowy wpis/Rozmowa) + safe-area; kompozytor pływa nad nim i chowa pasek przy klawiaturze/nagrywaniu (`bottom-tab-bar.tsx`). | 9 |
+| 2026-07-13  | Rozmowa jako pełnoekranowa trasa `/chat` (`chat-screen.tsx`): nagłówek z przełącznikiem persony + „Wróć”, bez dolnego paska, kolumna `max-w-3xl`; desktop zachowuje pływający panel. | 9 |
+| 2026-07-13  | Kompozytor z trybem z kontekstu (notatka vs czat) — jeden przycisk akcji, fokus nie otwiera czatu; tekst pola w `composer-text.ts`; desktop: zakładki „Notatka\|Rozmowa” nad polem. | 9 |
+| 2026-07-13  | Jeden wybór persony (lewy górny róg) — usunięta pigułka z pola; lista do lewej + skrót długich imion; w panelu lista przez portal (nieprzycięta). | 9 |
+| 2026-07-13  | Poprawki interakcji: nakładka „tap = stop” podczas nagrywania; warstwy z-index (kompozytor nad backdropem menu) → jeden tap zamyka menu; „Nowy wpis” jako akcja w nagłówku (desktop). | 9 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).

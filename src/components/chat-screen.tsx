@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 import { useSession } from "@/lib/auth";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -22,7 +23,9 @@ import { TherapistSwitcher } from "@/components/therapist-switcher";
  * Na desktopie widok renderuje się jako wycentrowana kolumna (główną ścieżką
  * pozostaje pływający panel przy kompozytorze).
  *
- * Wyjście: systemowy „wstecz" albo pasek zakładek — bez własnego przycisku X.
+ * Pełnoekranowy czat NIE ma dolnego paska zakładek (byłby migoczącym chrome na
+ * ekranie „w skupieniu" — decyzja UX). Wyjście jest jawne i zawsze widoczne:
+ * „← Dziennik" w nagłówku, plus systemowy „wstecz".
  */
 export function ChatScreen() {
   const hydrated = useHydrated();
@@ -64,45 +67,49 @@ export function ChatScreen() {
   ) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6">
+      {/* Nagłówek: przełącznik persony maksymalnie po lewej (wybór wszystkich
+          person), trwałe wyjście „Wróć" maksymalnie po prawej (bez dolnego paska
+          zakładek to jedyne jawne wyjście poza systemowym „wstecz"). Oba w
+          zasięgu kciuka na tej samej wysokości. */}
+      <div className="sticky top-14 z-30 -mx-6 flex items-center gap-2 bg-background/95 px-6 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {!gate && <TherapistSwitcher variant="title" placement="down" />}
+        <Link
+          href="/entries"
+          aria-label="Wróć do dziennika"
+          className="-mr-1 ml-auto flex shrink-0 items-center gap-0.5 rounded-full py-1 pl-2 pr-1 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+          Wróć
+        </Link>
+      </div>
+
       {gate ? (
         <div className="flex flex-1 items-center justify-center py-10">
           {gate}
         </div>
-      ) : (
-        <>
-          {/* Pod-nagłówek: przełącznik persony (jak selektor modelu w czacie). */}
-          <div className="sticky top-14 z-30 -mx-6 bg-background/95 px-6 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <TherapistSwitcher variant="title" placement="down" />
+      ) : !consent ? (
+        <div className="flex flex-1 items-center justify-center py-10">
+          <div className="w-full max-w-md rounded-3xl border bg-background/95 shadow-xl">
+            <ConsentGate therapist={active} onAccept={() => setConsent(true)} />
           </div>
-
-          {!consent ? (
-            <div className="flex flex-1 items-center justify-center py-10">
-              <div className="w-full max-w-md rounded-3xl border bg-background/95 shadow-xl">
-                <ConsentGate
-                  therapist={active}
-                  onAccept={() => setConsent(true)}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 space-y-3 py-4">
-              {/* Stała wiadomość powitalna (UI-only — nie idzie do modelu). */}
-              <Bubble
-                message={{
-                  id: "__greeting__",
-                  role: "assistant",
-                  content: active.greeting,
-                  createdAt: "",
-                }}
-              />
-              {messages.map((message) => (
-                <Bubble key={message.id} message={message} />
-              ))}
-              <div ref={endRef} aria-hidden />
-            </div>
-          )}
-        </>
+        </div>
+      ) : (
+        <div className="flex-1 space-y-3 py-4">
+          {/* Stała wiadomość powitalna (UI-only — nie idzie do modelu). */}
+          <Bubble
+            message={{
+              id: "__greeting__",
+              role: "assistant",
+              content: active.greeting,
+              createdAt: "",
+            }}
+          />
+          {messages.map((message) => (
+            <Bubble key={message.id} message={message} />
+          ))}
+          <div ref={endRef} aria-hidden />
+        </div>
       )}
     </div>
   );

@@ -135,8 +135,8 @@ export function NavMenu({
             className="fixed inset-0 z-40 cursor-default bg-transparent"
           />
 
-          {/* Panel — pływa nad composerem i paskiem zakładek, wysuwa się w górę. */}
-          <div className="fixed inset-x-0 bottom-40 z-50 flex justify-center px-4">
+          {/* Panel — pływa nad composerem (z-50) i paskiem zakładek, wysuwa się w górę. */}
+          <div className="fixed inset-x-0 bottom-40 z-[55] flex justify-center px-4">
             <div
               className={cn(
                 "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",

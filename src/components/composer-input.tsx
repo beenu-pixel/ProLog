@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Bot, Loader2, Mic, NotebookPen, SendHorizontal } from "lucide-react";
 
@@ -24,7 +25,6 @@ import { playSound } from "@/lib/sound";
 import {
   sendMessage,
   setOpen,
-  toggleOpen,
   useTherapistChat,
 } from "@/lib/therapist-chat-store";
 import {
@@ -33,7 +33,6 @@ import {
   useTherapistEnabled,
 } from "@/lib/therapist-prefs";
 import { TherapistChat } from "@/components/therapist-chat";
-import { TherapistSwitcher } from "@/components/therapist-switcher";
 
 /**
  * „Pigułka" dolnego pola kontekstowego — wspólna dla mobile i desktopu. Ma dwa
@@ -166,6 +165,23 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
 
   return (
     <div className="flex w-full flex-col gap-2">
+      {/* Nagrywanie = tryb wyłączności: pełnoekranowa, niewidoczna nakładka
+          przechwytuje KAŻDE tapnięcie (także w hamburger/nawigację) i zamienia
+          je w „zatrzymaj nagrywanie" — nic innego się nie wydarzy. Portal do
+          <body> (glass-panel ma backdrop-blur → przycinałby fixed), z-[60] nad
+          menu (z-50). Po zatrzymaniu nakładka znika i interakcje wracają. */}
+      {listening &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label="Zatrzymaj nagrywanie"
+            className="fixed inset-0 z-[60] cursor-default bg-transparent"
+          />,
+          document.body
+        )}
+
       {/* Panel rozmowy z Freudem (desktop) — pływa NAD paskiem. Na `/chat`
           rozmowa jest treścią strony, więc panelu nie montujemy. */}
       {enabled && mounted && mode !== "chat" && (
@@ -181,6 +197,53 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
         </p>
       )}
 
+      {/* Desktop: zakładki trybu NAD polem (uszko karty przy lewym rogu) —
+          jawnie rozdzielają „piszę notatkę" od „piszę do persony" (mobilny
+          odpowiednik to zakładki Dziennik/Rozmowa), nie zabierając polu ani
+          piksela szerokości. Aktywny segment = bieżący tryb; klik otwiera/zamyka
+          panel rozmowy. Na `/chat` zbędne (trybem rządzi trasa), bez włączonej
+          rozmowy pole jest tylko do notatek — wtedy ich nie ma. */}
+      {enabled && mode !== "chat" && (
+        <div className="hidden lg:flex">
+          <div
+            role="tablist"
+            aria-label="Tryb pola"
+            className="ml-3 flex items-center rounded-full border bg-background/85 p-0.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!chatMode}
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                !chatMode
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <NotebookPen className="size-3.5" />
+              Notatka
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={chatMode}
+              onClick={() => setOpen(true)}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                chatMode
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Bot className="size-3.5" />
+              Rozmowa
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Jeden, wspólny glass-panel: pole + (na mobile) nawigacja pod nim.
           Na desktopie panel jest przezroczysty — pole ma własną pastylkę. */}
       <div
@@ -190,6 +253,10 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
         )}
       >
         <form
+          // Znacznik „mikrofon w użyciu" dla CSS w BottomBar: pasek zakładek ma
+          // zostać schowany przez całe nagrywanie/transkrypcję (tap w mikrofon
+          // zabiera fokus polu, więc sam `textarea:focus` by nie wystarczył).
+          data-voice={listening || transcribing ? "" : undefined}
           onSubmit={(event) => {
             event.preventDefault();
             if (chatMode) submit(text);
@@ -202,25 +269,6 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
         >
         {/* Mobile: hamburger → menu rzadszej nawigacji. */}
         <NavMenu className="lg:hidden" menuOrigin="left" />
-
-        {/* Desktop: jawny przełącznik trybu — otwiera/zamyka panel rozmowy.
-            Na `/chat` zbędny (trybem rządzi trasa). */}
-        {loggedIn && mode !== "chat" && (
-          <button
-            type="button"
-            onClick={() => enabled && toggleOpen()}
-            disabled={!enabled}
-            aria-label="Rozmowa z terapeutą"
-            aria-pressed={open}
-            className={cn(
-              "hidden size-9 shrink-0 items-center justify-center rounded-full transition-colors lg:flex",
-              open ? "text-primary" : "text-muted-foreground hover:text-foreground",
-              !enabled && "cursor-not-allowed opacity-50"
-            )}
-          >
-            <Bot className="size-5" />
-          </button>
-        )}
 
         <textarea
           ref={textareaRef}
@@ -249,17 +297,6 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
           }
           className="hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground"
         />
-
-        {/* Desktop: wybór terapeuty jak selektor modelu w czacie AI (pigułka
-            otwierana w górę) — tylko w trybie czatu. Na mobile przełącznik jest
-            w nagłówku rozmowy. */}
-        {enabled && chatMode && (
-          <TherapistSwitcher
-            variant="pill"
-            placement="up"
-            className="hidden lg:block"
-          />
-        )}
 
         {hasText ? (
           chatMode ? (
@@ -295,7 +332,12 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
         ) : loggedIn ? (
           <button
             type="button"
-            onClick={toggle}
+            onClick={() => {
+              // Composer jest nad backdropem menu, więc tap w mikrofon go nie
+              // zamyka „sam z siebie" — robimy to jawnie i od razu (jeden tap).
+              closeMenu();
+              toggle();
+            }}
             disabled={micDisabled}
             aria-pressed={listening}
             aria-busy={transcribing}
