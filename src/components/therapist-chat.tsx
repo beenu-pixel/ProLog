@@ -40,19 +40,9 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
     >
 
       <header className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center">
-          {/* Mobile: przełącznik persony (rozwijana lista w nagłówku). */}
-          <TherapistSwitcher
-            variant="title"
-            placement="down"
-            className="lg:hidden"
-          />
-          {/* Desktop: tożsamość statyczna — przełącznik jest w pasku pola (pigułka). */}
-          <div className="hidden flex-col lg:flex">
-            <p className="text-sm font-semibold">{active.name}</p>
-            <p className="text-xs text-muted-foreground">{active.title}</p>
-          </div>
-        </div>
+        {/* Wybór persony w lewym górnym rogu (jak /chat i mobilka). Lista przez
+            portal, bo panel ma `overflow-hidden`, który by ją przyciął. */}
+        <TherapistSwitcher variant="title" placement="down" portal />
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -91,8 +81,9 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
   );
 }
 
-/** Jednorazowa zgoda na wysyłanie wpisów do modelu AI. */
-function ConsentGate({
+/** Jednorazowa zgoda na wysyłanie wpisów do modelu AI. Współdzielona z
+ *  pełnoekranowym widokiem `/chat` (`ChatScreen`). */
+export function ConsentGate({
   therapist,
   onAccept,
 }: {
@@ -119,8 +110,9 @@ function ConsentGate({
   );
 }
 
-/** Pojedynczy dymek. Asystent: lekki markdown; pusty + streaming → kropki. */
-function Bubble({ message }: { message: ChatMessage }) {
+/** Pojedynczy dymek. Asystent: lekki markdown; pusty + streaming → kropki.
+ *  Współdzielony z pełnoekranowym widokiem `/chat` (`ChatScreen`). */
+export function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const empty = message.content.length === 0;
 

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -19,6 +19,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ProLog — dziennik",
   description: "Osobisty dziennik — zapisuj i przeglądaj swoje wpisy.",
+};
+
+// `cover` odsłania obszar pod wcięciami (notch/home indicator), dzięki czemu
+// `env(safe-area-inset-bottom)` w dolnym pasku zakładek ma realną wartość.
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
