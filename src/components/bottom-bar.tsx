@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { BottomTabBar } from "@/components/bottom-tab-bar";
@@ -7,6 +8,7 @@ import { ComposerInput } from "@/components/composer-input";
 import { NavMenu } from "@/components/nav-menu";
 import { useSession } from "@/lib/auth";
 import { useTherapistEnabled } from "@/lib/therapist-prefs";
+import { useLightboxOpen } from "@/lib/lightbox-store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,10 +29,35 @@ export function BottomBar() {
   const pathname = usePathname();
   const session = useSession();
   const [enabledPref] = useTherapistEnabled();
+  const lightboxOpen = useLightboxOpen();
+
+  // Wysokość całego dolnego obszaru (kompozytor + ewentualny pasek zakładek)
+  // wystawiamy jako `--bottom-nav-h`, żeby menu hamburgera (portal do <body>,
+  // niezależne od tego układu) mogło usiąść tuż nad polem NIEZALEŻNIE od trasy —
+  // na `/chat` nie ma paska zakładek, więc pole dokuje niżej niż w dzienniku.
+  // Callback-ref sprząta zmienną, gdy obszar znika (formularze, landing).
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const measureRef = useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    const root = document.documentElement;
+    if (!el) {
+      root.style.removeProperty("--bottom-nav-h");
+      return;
+    }
+    const update = () =>
+      root.style.setProperty("--bottom-nav-h", `${el.offsetHeight}px`);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    observerRef.current = ro;
+  }, []);
 
   // Landing (`/`), ekran powitalny i formularze mają własny układ — bez paska.
   const isForm = pathname === "/new" || pathname.endsWith("/edit");
   if (isForm || pathname === "/welcome" || pathname === "/") return null;
+
+  // Pełnoekranowy podgląd zdjęcia przykrywa ekran — pasek nie może wisieć nad nim.
+  if (lightboxOpen) return null;
 
   const isChat = pathname.startsWith("/chat");
   // Trasy „tylko nawigacja": bez pola/tworzenia wpisu — sam hamburger (mobile).
@@ -68,7 +95,10 @@ export function BottomBar() {
     // z-50: composer musi być NAD backdropem menu (z-40), żeby tap w pole/mikrofon
     // trafiał w composer, a nie był „zjadany" na zamknięcie menu (jeden tap zamiast
     // dwóch). Panel menu (z-55) i nakładka nagrywania (z-60) są jeszcze wyżej.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col">
+    <div
+      ref={measureRef}
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col"
+    >
       {content && (
         <div className="peer/composer flex w-full px-4 pb-3 lg:pb-6">
           {content}

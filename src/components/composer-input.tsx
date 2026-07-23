@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Bot, Loader2, Mic, NotebookPen, SendHorizontal } from "lucide-react";
+import { Bot, Loader2, Mic, NotebookPen, RotateCw, SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
@@ -128,7 +128,14 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
   // Transkrypcja: dopisuje do pola; w trybie czatu przy auto-send od razu wysyła.
   // Tekst czytamy przez `getComposerText()` (nie z domknięcia) — callback może
   // odpalić długo po renderze, w którym powstał.
-  const { supported, listening, transcribing, toggle } = useTranscription((t) => {
+  const {
+    supported,
+    listening,
+    transcribing,
+    error: transcribeError,
+    retry: retryTranscribe,
+    toggle,
+  } = useTranscription((t) => {
     const current = getComposerText();
     const combined = current ? `${current} ${t}` : t;
     if (
@@ -197,6 +204,22 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
         </p>
       )}
 
+      {/* Transkrypcja padła na błędzie sieci/serwera — nagranie jest zachowane,
+          więc oferujemy ponowienie zamiast po cichu gubić podyktowaną treść. */}
+      {transcribeError && !transcribing && (
+        <div className="flex items-center justify-center gap-2 px-3 text-center text-xs text-destructive">
+          <span>Nie udało się rozpoznać mowy.</span>
+          <button
+            type="button"
+            onClick={retryTranscribe}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium underline-offset-2 transition-colors hover:bg-destructive/10 hover:underline"
+          >
+            <RotateCw className="size-3" />
+            Ponów
+          </button>
+        </div>
+      )}
+
       {/* Desktop: zakładki trybu NAD polem (uszko karty przy lewym rogu) —
           jawnie rozdzielają „piszę notatkę" od „piszę do persony" (mobilny
           odpowiednik to zakładki Dziennik/Rozmowa), nie zabierając polu ani
@@ -249,7 +272,10 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
       <div
         className={cn(
           "w-full overflow-hidden rounded-[1.75rem] border bg-background/85 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70",
-          "lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none lg:supports-[backdrop-filter]:bg-transparent"
+          // Wskaźnik fokusu dla klawiatury — na mobile pastylką jest ten div.
+          "transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
+          // Na desktopie pastylką jest <form> (niżej), więc ring z diva gasimy.
+          "lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none lg:supports-[backdrop-filter]:bg-transparent lg:focus-within:ring-0"
         )}
       >
         <form
@@ -264,7 +290,9 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
           }}
           className={cn(
             "flex min-h-16 w-full items-center gap-1.5 px-3 py-2.5",
-            "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70"
+            // Na desktopie pastylką jest ten <form> — tu ląduje wskaźnik fokusu.
+            "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70",
+            "lg:transition-[border-color,box-shadow] lg:focus-within:border-ring lg:focus-within:ring-[3px] lg:focus-within:ring-ring/50"
           )}
         >
         {/* Mobile: hamburger → menu rzadszej nawigacji. */}

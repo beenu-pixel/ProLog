@@ -179,7 +179,8 @@ export default function HeroScene({ src, className, onReady }: Props) {
       if (disposed) return;
       count = new Uint32Array(ab, 0, 1)[0];
       const positions = new Float32Array(ab, 4, count * 3);
-      // (normalne są w pliku za pozycjami — na razie nieużywane)
+      // Plik zawiera już tylko pozycje (bez normalnych — nieużywane w tym
+      // renderze, patrz scripts/build-bust-points.mjs).
 
       target = new Float32Array(positions); // kopia (widok → własny bufor)
       // szerokość świata z rozpiętości X (do dopasowania kamery)

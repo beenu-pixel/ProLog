@@ -33,7 +33,7 @@ export function CodeBlock({
   return (
     <div className={cn("group relative", className)}>
       {label && (
-        <div className="rounded-t-lg border border-b-0 bg-secondary/60 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <div className="rounded-t-lg border border-b-0 bg-secondary/60 px-3 py-1.5 text-xs font-medium text-muted-foreground-onmuted">
           {label}
         </div>
       )}

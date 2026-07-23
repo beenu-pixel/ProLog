@@ -87,7 +87,7 @@ export function PlanPanel() {
             <p className="text-sm font-medium">
               Plan {TIER_LABEL[tier]}
               {statusLabel && (
-                <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs font-normal text-muted-foreground-onmuted">
                   {statusLabel}
                 </span>
               )}

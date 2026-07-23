@@ -34,7 +34,7 @@ export function BottomTabBar() {
 
   const itemClass = (active: boolean) =>
     cn(
-      "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-[11px] leading-none transition-colors",
+      "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-xs leading-none transition-colors",
       active
         ? "font-medium text-foreground"
         : "text-muted-foreground hover:text-foreground"

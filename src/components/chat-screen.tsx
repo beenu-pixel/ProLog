@@ -77,7 +77,7 @@ export function ChatScreen() {
         <Link
           href="/entries"
           aria-label="Wróć do dziennika"
-          className="-mr-1 ml-auto flex shrink-0 items-center gap-0.5 rounded-full py-1 pl-2 pr-1 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="ml-auto flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ChevronLeft className="size-4" />
           Wróć

@@ -42,7 +42,7 @@ export const FREUD: Therapist = {
   id: "freud",
   name: "Zygmunt Freud",
   title: "Psychoanalityk",
-  image: "/freud.jpg",
+  image: "/freud.webp",
   tagline: "Architekt podświadomości — czyta między wierszami snów, lęków i przejęzyczeń.",
   greeting:
     "Witaj. Cieszę się, że tu jesteś. Usiądź wygodnie — możesz mi opowiedzieć, co dziś czujesz, albo zapytać, co dostrzegam w twoim dzienniku. Niczego nie musisz; zacznijmy po prostu od tego, co masz teraz na sercu.",
@@ -85,7 +85,7 @@ export const MAREK_AURELIUSZ: Therapist = {
   id: "marek-aureliusz",
   name: "Marek Aureliusz",
   title: "Cesarz stoik",
-  image: "/marcus-aurelius.jpg",
+  image: "/marcus-aurelius.webp",
   tagline: "Stoicka forteca — uczy odróżniać to, co zależy od ciebie, od tego, na co nie masz wpływu.",
   greeting:
     "Witaj. Usiądź na chwilę w spokoju. Możesz mi powiedzieć, co cię dziś niepokoi, albo zapytać, co widzę w twoim dzienniku. Zacznijmy po prostu od tego, co masz przed sobą teraz.",
@@ -122,7 +122,7 @@ export const JUNG: Therapist = {
   id: "jung",
   name: "Carl Gustav Jung",
   title: "Psycholog analityczny",
-  image: "/jung.jpg",
+  image: "/jung.webp",
   tagline: "Odkrywca Cienia — prowadzi przez mity i symbole ku pełni (indywiduacji).",
   greeting:
     "Witaj. Cieszę się, że tu jesteś. To, co cię tu przywiodło, rzadko bywa przypadkiem. Opowiedz mi, co cię porusza — albo zapytaj, co dostrzegam w twoim dzienniku. Możemy też zacząć od snu, jeśli jakiś ci towarzyszy.",
@@ -159,7 +159,7 @@ export const ARYSTOTELES: Therapist = {
   id: "arystoteles",
   name: "Arystoteles",
   title: "Filozof praktyczny",
-  image: "/arystoteles.jpg",
+  image: "/arystoteles.webp",
   tagline: "Mistrz nawyków i złotego środka — szczęście to nie rzecz, lecz sposób działania.",
   greeting:
     "Witaj. Każde działanie zmierza ku jakiemuś dobru — przyjrzyjmy się więc spokojnie twojemu. Opowiedz, co cię zajmuje, albo zapytaj, co widzę w twoim dzienniku. Zacznijmy od tego, by jasno nazwać rzecz.",
@@ -196,7 +196,7 @@ export const MARINOFF: Therapist = {
   id: "marinoff",
   name: "Lou Marinoff",
   title: "Doradca filozoficzny",
-  image: "/marinoff.jpg",
+  image: "/marinoff.webp",
   tagline: "Pogromca iluzji — zamiast diagnozy daje jaśniejszą filozofię (metoda PEACE).",
   greeting:
     "Cześć. Nie szukam w tobie pacjenta ani diagnozy — szukam jaśniejszej filozofii. Powiedz, co cię uwiera, albo zapytaj, co widzę w twoim dzienniku. Rozłóżmy to spokojnie na czynniki i poszukajmy modelu, z którym wyjdziesz gotowy do działania.",
