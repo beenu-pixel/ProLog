@@ -1,8 +1,8 @@
 # PRD — ProLog
 
-**Wersja:** 3.6 (Etap 7 — uszczelnienie płatności i drugi audyt bezpieczeństwa)
-**Data:** 2026-06-24
-**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**), Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`) oraz Etap 7 (**uszczelnienie płatności — serwerowy Checkout, drugi audyt OWASP**) zrealizowane
+**Wersja:** 3.7 (Etap 10 — audyt dostępności/kontrastu i szlif interfejsu)
+**Data:** 2026-07-23
+**Status:** Żywy dokument — Etapy 1–2 (fundament, baza + logowanie) oraz Etap 3 (AI: transkrypcja, terapeuta, API/MCP, gating + log zużycia) zrealizowane; Etap 3 rozszerzony o **wyszukiwanie semantyczne/hybrydowe (RAG)** i **5 person terapeuty**; Etap 4 (bezpieczeństwo: sanityzacja XSS, rate-limiting AI, hardening bazy), Etap 5 (**załączniki — zdjęcia wpisów**), Etap 6 (**monetyzacja — plany płatne + Stripe**, strona biznesowa w `MONETYZACJA.md`), Etap 7 (**uszczelnienie płatności — serwerowy Checkout, drugi audyt OWASP**), Etap 8 (**Strapi jako źródło prawdy + indeks wektorowy + PostHog**), Etap 9 (**nawigacja mobilna: dolny pasek zakładek + pełnoekranowy `/chat`**) oraz Etap 10 (**dostępność/kontrast WCAG, niezawodność dyktowania, fokus klawiatury w lightboxie, wydajność zasobów landingu, szlif UI**) zrealizowane
 
 > **Nota o tym dokumencie.** To **żywa specyfikacja**, nie zapis historyczny. Sekcje 1–6
 > opisują **fundament** produktu (styl UI, nawigacja, motyw, model danych, zachowania
@@ -54,12 +54,18 @@ Co już działa w aplikacji:
   `/chat`** (systemowy „wstecz”, wyjście „Wróć” w nagłówku); kompozytor ma **tryb z kontekstu**
   (notatka vs czat) z jednym przyciskiem akcji; jeden wybór persony (lewy górny róg, lista przez
   portal). Spójna zasada trybu przeniesiona na desktop (zakładki Notatka/Rozmowa nad polem).
+- **Dostępność, kontrast i szlif interfejsu (Etap 10):** audyt WCAG (mikroczcionki, kontrast tekstu
+  na wyciszonym tle, obwódki pól formularza); dyktowanie głosu **nie gubi już cicho** nagrania przy
+  błędzie sieci — audio jest zachowywane, użytkownik może je **ponowić**; **fokus klawiatury**
+  widoczny na kompozytorze i uwięziony w pełnoekranowym podglądzie zdjęcia (dolny pasek chowa się
+  pod lightboxem, naprawiony biały pasek u dołu); **wydajność landingu** (chmura punktów 3D i zdjęcia
+  person o połowę lżejsze); drobny szlif wizualny (przycisk „Nowy wpis”, wyrównania).
 
 Szczegóły w sekcjach 7 (Etap 2), 8 (Etap 3 — w tym 8.6 wyszukiwanie semantyczne),
 9 (bezpieczeństwo i rozliczalność AI), 11 (uszczelnienie bezpieczeństwa), 12 (Etap 5 — zdjęcia),
 13 (Etap 6 — monetyzacja), 14 (Etap 7 — uszczelnienie płatności + drugi audyt OWASP),
-15 (Etap 8 — Strapi CMS, indeks wektorowy i analityka)
-i 16 (Etap 9 — nawigacja mobilna + pełnoekranowy czat).
+15 (Etap 8 — Strapi CMS, indeks wektorowy i analityka), 16 (Etap 9 — nawigacja mobilna +
+pełnoekranowy czat) i 17 (Etap 10 — dostępność, kontrast i szlif interfejsu).
 
 ---
 
@@ -858,6 +864,83 @@ role dolnego pola — **szybka notatka** vs **rozmowa z terapeutą** — bez utr
 
 ---
 
+## 17. Etap 10 — Dostępność, kontrast i szlif interfejsu (zrealizowane)
+
+Cel etapu: audyt jakościowy niezwiązany z nowym zakresem funkcjonalnym — dociągnięcie aplikacji do
+progów WCAG (rozmiar tekstu, kontrast), domknięcie cichej utraty danych w dyktowaniu głosowym,
+uzupełnienie brakującego fokusu klawiatury oraz odchudzenie zasobów landingu. Zainicjowane przeglądem
+na żądanie użytkownika (wielkości czcionek i kontrast), rozszerzone o pełny audyt dostępności,
+wydajności i stanów brzegowych.
+
+### 17.1 Kontrast i typografia (WCAG)
+- **Mikroczcionki podbite o jeden stopień**, zgodnie z zasadą „jeśli już spełnia próg — nie ruszać”:
+  etykieta „dziś” w pasku dni 9 px → 10 px, etykiety dolnej nawigacji 11 px → 12 px
+  (`day-strip.tsx`, `bottom-tab-bar.tsx`). Reszta skali (10 px w badge’ach/tabelach) zostawiona bez zmian.
+- **Nowy token `--muted-foreground-onmuted`** (`globals.css`): wyciszony tekst na wyciszonym tle
+  (`bg-secondary/muted/accent`) miał w jasnym motywie kontrast **4,34:1** (poniżej progu AA 4,5:1).
+  Token w jasnym motywie jest ciemniejszy (~5,4:1 na `secondary`), w ciemnym **identyczny** z
+  dotychczasowym `muted-foreground` — zero zmiany wyglądu tam, gdzie kontrast już przechodził. Użyty
+  w trzech miejscach: badge w `therapist-switcher.tsx`, badge w `plan-panel.tsx`, nagłówek bloku kodu
+  w `docs/code-block.tsx`.
+- **Numery pustych dni w kalendarzu statystyk:** `text-muted-foreground/60` (2,3:1 w jasnym motywie,
+  poniżej wszystkiego) → pełny `text-muted-foreground` (4,73:1 / 7,6:1).
+- **Obwódka pól formularza (`--input`, wyłącznie Input/Textarea):** 1,26:1 → **~3:1** w obu motywach
+  (jasny: `oklch(0.66)`; ciemny: biały 35% zamiast 15%). Dekoracyjny `--border` celowo zostaje subtelny.
+- Globalny `muted-foreground` (4,73:1 na białym) **świadomie bez zmian** — przechodził próg AA.
+
+### 17.2 Niezawodność dyktowania głosu
+- **Problem:** błąd sieci/serwera w `/api/transcribe` był połykany „best effort” (`use-transcription.ts`)
+  — nagranie znikało bez śladu, użytkownik tracił podyktowaną treść bez żadnej informacji.
+- **Naprawa:** hook zachowuje teraz audio nieudanej próby (`lastBlobRef`) i wystawia `error` + `retry()`.
+  Limit dzienny (**429**) jest rozróżniany od błędu — nie ustawia `error` (komunikuje go osobny
+  wskaźnik limitu, ponawianie i tak odbiłoby się o limit). Przycisk **„Ponów”** pojawia się w pasku
+  narzędzi edytora wpisu (`rich-text-editor.tsx`) oraz nad polem kompozytora (`composer-input.tsx`),
+  ponawia wysyłkę **tego samego** nagrania bez konieczności dyktowania od nowa. Zweryfikowane
+  end-to-end (błąd → „Ponów” → tekst trafia do pola).
+
+### 17.3 Fokus klawiatury i pełnoekranowy podgląd zdjęcia
+- **Focus-ring na kompozytorze:** pole nie miało żadnego wskaźnika fokusu z klawiatury (`outline-none`
+  bez zamiennika) — dodano `focus-within` ring spójny z resztą pól (mobile: na kontenerze; desktop:
+  na `<form>`, bo to on jest widoczną pastylką przy tym breakpoincie).
+- **Pułapka fokusu w `photo-lightbox.tsx`:** Tab uciekał z pełnoekranowego podglądu do treści pod
+  spodem, a po zamknięciu fokus przepadał na `<body>`. Teraz: otwarcie zapamiętuje poprzednio aktywny
+  element i przenosi fokus do dialogu, Tab/Shift+Tab krążą wyłącznie po przyciskach podglądu, a
+  zamknięcie przywraca fokus na miniaturę, z której otwarto.
+- **Dolny pasek pod lightboxem:** kompozytor i pasek zakładek (oba `fixed z-50`) wisiały nad
+  pełnoekranowym zdjęciem (ten sam z-index co lightbox). Nowy reaktywny licznik
+  **`src/lib/lightbox-store.ts`** — `BottomBar` chowa się w całości, gdy podgląd jest otwarty.
+- **Biały pasek u dołu lightboxa:** kontener `fixed inset-0` z animacją wejścia (`animate-in`) potrafił
+  wyliczyć wysokość krótszą niż viewport (auto-wysokość z `top:0`+`bottom:0` „cięła się” podczas
+  animacji) — naprawione jawnym `h-dvh`.
+
+### 17.4 Wydajność zasobów landingu
+- **`public/marcus-points.bin` (chmura punktów popiersia 3D): 1,44 MB → 0,69 MB.** Plik niósł
+  pozycje **i** normalne wierzchołków, ale runtime (`hero-scene.tsx`) renderuje punkty jako
+  nieprzezroczyste z testem głębi — normalne były **nieużywane**. Usunięte z pliku i z generatora
+  (`scripts/build-bust-points.mjs`), by regeneracja nie przywróciła wagi.
+- **Zdjęcia landingu: jpg → webp, ~1,02 MB → ~0,39 MB łącznie.** 4 karty terapeutów dodatkowo
+  zmniejszone do 720 px szerokości (wyświetlają się w 256 px, grayscale — różnica niewidoczna); poster
+  Marka Aureliusza zostawiony w natywnej rozdzielczości (wyświetla się duży w hero). Odwołania
+  zaktualizowane w `therapists.ts` i `landing-hero.tsx`.
+
+### 17.5 Drobny szlif UI
+- **Przycisk „Wróć” w `/chat`:** niesymetryczny padding (`pl-2 pr-1` + ujemny margines) wyśrodkowany
+  do `px-3` — tekst i ikona równo w pastylce.
+- **„Nowy wpis” i „Konto” w nagłówku:** wyrównana wysokość (`h-8` → `h-9`, zgodna z resztą przycisków
+  w rzędzie). Kolorystyka „Nowy wpis” przywrócona do odwróconej/kontrastowej (`bg-primary` —
+  czarny z białym napisem w jasnym motywie, biały z ciemnym w ciemnym, jak mikrofon kompozytora) z
+  monochromatyczną poświatą przy hover (`--glow-hover`, reguła `.hover-glow` w `globals.css` — jedyny
+  sposób, bo arbitralne `shadow-[…var()…]` w Tailwindzie się nie generuje) i pierścieniem `outline`
+  przy fokusie klawiatury.
+
+### 17.6 Weryfikacja
+- `npx tsc --noEmit` i `npm run build` czyste. Każda zmiana zweryfikowana na żywo w przeglądarce
+  użytkownika (oba motywy): pomiary `getComputedStyle`/kontrastu, realne przejścia Tab/Shift+Tab,
+  end-to-end retry dyktowania, zrzuty przed/po dla obwódek i poświaty. Nienaruszona zasada z audytu:
+  żadna wartość spełniająca już próg WCAG nie została zmieniona.
+
+---
+
 ## Changelog
 
 | Data        | Zmiana                                                                                  | Etap |
@@ -907,5 +990,10 @@ role dolnego pola — **szybka notatka** vs **rozmowa z terapeutą** — bez utr
 | 2026-07-13  | Kompozytor z trybem z kontekstu (notatka vs czat) — jeden przycisk akcji, fokus nie otwiera czatu; tekst pola w `composer-text.ts`; desktop: zakładki „Notatka\|Rozmowa” nad polem. | 9 |
 | 2026-07-13  | Jeden wybór persony (lewy górny róg) — usunięta pigułka z pola; lista do lewej + skrót długich imion; w panelu lista przez portal (nieprzycięta). | 9 |
 | 2026-07-13  | Poprawki interakcji: nakładka „tap = stop” podczas nagrywania; warstwy z-index (kompozytor nad backdropem menu) → jeden tap zamyka menu; „Nowy wpis” jako akcja w nagłówku (desktop). | 9 |
+| 2026-07-23  | Audyt WCAG: mikroczcionki 9→10px/11→12px, token `--muted-foreground-onmuted` (kontrast na wyciszonym tle), pełny kolor pustych dni w kalendarzu, obwódka pól formularza (`--input`) ~1,26:1 → ~3:1. | 10 |
+| 2026-07-23  | Dyktowanie głosu: błąd sieci/serwera już nie gubi cicho nagrania — audio zachowywane + przycisk „Ponów” (edytor wpisu, kompozytor); limit dzienny (429) traktowany osobno od błędu. | 10 |
+| 2026-07-23  | Fokus klawiatury: widoczny ring na kompozytorze; pułapka fokusu w pełnoekranowym `photo-lightbox.tsx`; dolny pasek chowa się pod lightboxem (`lightbox-store.ts`); naprawiony biały pasek u dołu lightboxa (`h-dvh`). | 10 |
+| 2026-07-23  | Wydajność landingu: `marcus-points.bin` 1,44→0,69 MB (usunięte nieużywane normalne z chmury punktów 3D); zdjęcia terapeutów/postera jpg→webp, ~1,02→0,39 MB. | 10 |
+| 2026-07-23  | Szlif UI: wyśrodkowany przycisk „Wróć” w `/chat`; „Nowy wpis”/„Konto” wyrównane wysokością, kolorystyka odwrócona jak mikrofon + poświata przy hover i pierścień przy fokusie. | 10 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
