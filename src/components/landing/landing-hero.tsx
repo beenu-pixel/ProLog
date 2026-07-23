@@ -14,7 +14,7 @@ const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
   ssr: false,
 });
 
-const BUST_SRC = "/marcus-aurelius.jpg"; // poster / fallback
+const BUST_SRC = "/marcus-aurelius.webp"; // poster / fallback
 const POINTS_SRC = "/marcus-points.bin"; // chmura punktów-skorupy (three.js)
 
 function useReducedMotion(): boolean {

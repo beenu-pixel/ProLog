@@ -3,7 +3,7 @@
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Italic, List, ListOrdered, Loader2, Mic } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Loader2, Mic, RotateCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
@@ -49,11 +49,10 @@ function ToolbarButton({
 }
 
 function DictateButton({ editor }: { editor: Editor }) {
-  const { supported, listening, transcribing, toggle } = useTranscription(
-    (text) => {
+  const { supported, listening, transcribing, error, retry, toggle } =
+    useTranscription((text) => {
       editor.chain().focus().insertContent(`${text} `).run();
-    }
-  );
+    });
   const limit = useAiLimit("transcribe");
   // Blokujemy mikrofon po wyczerpaniu dziennego limitu (chyba że właśnie trwa
   // nagrywanie — pozwalamy je dokończyć).
@@ -61,42 +60,60 @@ function DictateButton({ editor }: { editor: Editor }) {
     !supported || transcribing || (limit.blocked && !listening);
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      disabled={disabled}
-      aria-pressed={listening}
-      aria-busy={transcribing}
-      aria-label="Dyktuj"
-      title={
-        !supported
-          ? "Nagrywanie nie jest wspierane w tej przeglądarce"
-          : limit.blocked && !listening
-            ? "Dzienny limit transkrypcji wykorzystany — odnowi się o północy"
-            : transcribing
-              ? "Transkrypcja…"
-              : listening
-                ? "Zatrzymaj nagrywanie"
-                : limit.nearLimit
-                  ? `Dyktuj — zostało ${limit.remaining} na dziś`
-                  : "Dyktuj"
-      }
-      className={cn(
-        "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors",
-        listening
-          ? "bg-destructive/10 text-destructive"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-        disabled &&
-          "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={disabled}
+        aria-pressed={listening}
+        aria-busy={transcribing}
+        aria-label="Dyktuj"
+        title={
+          !supported
+            ? "Nagrywanie nie jest wspierane w tej przeglądarce"
+            : limit.blocked && !listening
+              ? "Dzienny limit transkrypcji wykorzystany — odnowi się o północy"
+              : transcribing
+                ? "Transkrypcja…"
+                : listening
+                  ? "Zatrzymaj nagrywanie"
+                  : limit.nearLimit
+                    ? `Dyktuj — zostało ${limit.remaining} na dziś`
+                    : "Dyktuj"
+        }
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors",
+          listening
+            ? "bg-destructive/10 text-destructive"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          disabled &&
+            "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
+        )}
+      >
+        {transcribing ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Mic className={cn("size-4", listening && "animate-pulse")} />
+        )}
+        <span>{transcribing ? "Transkrypcja…" : "Dyktuj"}</span>
+      </button>
+
+      {/* Po błędzie sieci/serwera: nagranie jest zachowane, można ponowić bez
+          ponownego dyktowania. Znika, gdy transkrypcja się powiedzie lub gdy
+          użytkownik nagra od nowa. */}
+      {error && !transcribing && (
+        <button
+          type="button"
+          onClick={retry}
+          aria-label="Nie udało się rozpoznać mowy — ponów"
+          title="Nie udało się rozpoznać mowy. Nagranie zachowane — kliknij, by ponowić."
+          className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+        >
+          <RotateCw className="size-4" />
+          <span>Ponów</span>
+        </button>
       )}
-    >
-      {transcribing ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <Mic className={cn("size-4", listening && "animate-pulse")} />
-      )}
-      <span>{transcribing ? "Transkrypcja…" : "Dyktuj"}</span>
-    </button>
+    </div>
   );
 }
 

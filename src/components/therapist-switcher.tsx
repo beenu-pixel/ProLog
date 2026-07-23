@@ -137,7 +137,7 @@ export function TherapistSwitcher({
                       {displayName(t.name)}
                     </span>
                     {locked && (
-                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground-onmuted">
                         <Lock className="size-2.5" />
                         Pro
                       </span>

@@ -34,7 +34,7 @@ export function AccountMenu() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
+          "flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
           open
             ? "bg-accent text-foreground"
             : "text-muted-foreground hover:text-foreground"

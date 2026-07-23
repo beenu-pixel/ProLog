@@ -79,7 +79,7 @@ export function LandingTherapists() {
               {/* Podpis jako nakładka — na hover unosi się i odrobinę bardziej zasłania zdjęcie. */}
               <figcaption className="absolute inset-x-0 bottom-0 space-y-1.5 p-5 text-white transition-transform duration-300 group-hover:-translate-y-2">
                 <p className="text-lg font-semibold tracking-tight">{t.name}</p>
-                <p className="text-xs font-medium uppercase tracking-wide text-white/70">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/80">
                   {t.title}
                 </p>
                 <p className="pt-1 text-sm leading-relaxed text-white/80">

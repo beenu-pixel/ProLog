@@ -33,6 +33,14 @@ export interface UseTranscription {
   listening: boolean;
   /** Czy trwa wysyłka/transkrypcja po zatrzymaniu nagrywania. */
   transcribing: boolean;
+  /**
+   * Ostatnia transkrypcja padła na błędzie sieci/serwera, a nagranie jest
+   * zachowane — można je ponowić przez `retry()`. Limit dzienny (429) NIE ustawia
+   * tej flagi: komunikuje go osobny wskaźnik limitu.
+   */
+  error: boolean;
+  /** Ponawia wysyłkę zachowanego nagrania po błędzie. No-op, gdy nie ma czego ponawiać. */
+  retry: () => void;
   /** Start/stop nagrywania. */
   toggle: () => void;
 }
@@ -49,10 +57,14 @@ export function useTranscription(
   const supported = useSyncExternalStore(noopSubscribe, isSupported, () => false);
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [error, setError] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Audio ostatniej nieudanej próby — trzymane, by dało się ponowić bez
+  // ponownego nagrywania (inaczej użytkownik traci podyktowaną treść).
+  const lastBlobRef = useRef<Blob | null>(null);
 
   // Najświeższy callback bez przebudowy nagrywarki.
   const onTranscriptRef = useRef(onTranscript);
@@ -80,6 +92,7 @@ export function useTranscription(
 
   const transcribe = async (blob: Blob) => {
     setTranscribing(true);
+    setError(false);
     try {
       const token = await getAccessToken();
       if (!token) return; // transkrypcja tylko dla zalogowanych
@@ -91,15 +104,30 @@ export function useTranscription(
         body: form,
       });
       noteFromHeaders("transcribe", res); // odśwież stan limitu (też przy 429)
-      if (!res.ok) return;
+      if (res.status === 429) {
+        // Limit dzienny — komunikuje go osobny wskaźnik; nie traktujemy jako
+        // błędu do ponowienia (ponawianie i tak odbiłoby się o limit).
+        lastBlobRef.current = null;
+        return;
+      }
+      if (!res.ok) throw new Error("bad response");
       const data = (await res.json()) as { text?: string };
       const text = data.text?.trim();
       if (text) onTranscriptRef.current(text);
+      lastBlobRef.current = null; // sukces — nie ma czego ponawiać
     } catch {
-      // Najlepszy wysiłek — błąd sieci/serwera nie może wywalić apki.
+      // Błąd sieci/serwera: zachowujemy audio i sygnalizujemy błąd, by
+      // użytkownik mógł ponowić i nie stracił podyktowanej treści.
+      lastBlobRef.current = blob;
+      setError(true);
     } finally {
       setTranscribing(false);
     }
+  };
+
+  const retry = () => {
+    const blob = lastBlobRef.current;
+    if (blob) void transcribe(blob);
   };
 
   const start = async () => {
@@ -108,6 +136,9 @@ export function useTranscription(
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       chunksRef.current = [];
+      // Nowe nagranie zastępuje ewentualną nieudaną próbę.
+      lastBlobRef.current = null;
+      setError(false);
 
       const recorder = new MediaRecorder(stream);
       recorder.ondataavailable = (event) => {
@@ -155,5 +186,5 @@ export function useTranscription(
     else void start();
   };
 
-  return { supported, listening, transcribing, toggle };
+  return { supported, listening, transcribing, error, retry, toggle };
 }

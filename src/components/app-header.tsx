@@ -57,9 +57,13 @@ export function AppHeader() {
           <Link
             href="/new"
             onClick={() => playSound("entry-new")}
-            className="hidden h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-105 active:scale-95 lg:inline-flex"
+            // Odwrócona, mocno kontrastowa kolorystyka jak mikrofon w kompozytorze
+            // (bg-primary/text-primary-foreground: czarny z białym napisem+plusem
+            // w jasnym motywie, biały w ciemnym). Poświata przy hover + pierścień
+            // przy fokusie klawiatury — klasa `.hover-glow` (globals.css).
+            className="hover-glow hidden h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-[box-shadow,transform] duration-200 active:scale-95 lg:inline-flex"
           >
-            <Plus className="size-4" strokeWidth={2.4} />
+            <Plus className="size-4" strokeWidth={2.25} />
             Nowy wpis
           </Link>
           <AccountMenu />

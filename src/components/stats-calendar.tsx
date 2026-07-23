@@ -108,7 +108,7 @@ export function StatsCalendar({
                 ? `color-mix(in oklch, var(--foreground) ${10 + level * 18}%, transparent)`
                 : undefined;
               const numClass = !has
-                ? "text-muted-foreground/60"
+                ? "text-muted-foreground"
                 : level >= 3
                   ? "text-background"
                   : "text-foreground";

@@ -126,17 +126,29 @@ export function NavMenu({
         // co czyni go blokiem zawierającym dla `fixed` i przycinałoby panel —
         // dlatego renderujemy overlay poza nim, względem viewportu.
         <>
-          {/* Backdrop — klik poza menu zamyka. */}
+          {/* Backdrop — klik poza menu zamyka. Woal jest CELOWO lekki i BEZ
+              rozmycia: rozmowa pod menu ma pozostać czytelna (użytkownik chce
+              widzieć czaty, gdy zagląda w menu). Wystarczy tyle, żeby czarny
+              dymek własnej wiadomości nie raził obok węższego panelu — mocniejszy
+              woal / `backdrop-blur` gasił całą konwersację, więc ich nie wracamy.
+              Composer (z-50) jest NAD woalem — zostaje wyraźny. */}
           <button
             type="button"
             aria-hidden
             tabIndex={-1}
             onClick={() => closeMenu()}
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            className="fixed inset-0 z-40 cursor-default bg-background/40"
           />
 
-          {/* Panel — pływa nad composerem (z-50) i paskiem zakładek, wysuwa się w górę. */}
-          <div className="fixed inset-x-0 bottom-40 z-[55] flex justify-center px-4">
+          {/* Panel — pływa nad composerem (z-50) i paskiem zakładek, wysuwa się
+              w górę. Siada tuż nad polem dzięki `--bottom-nav-h` (wysokość całego
+              dolnego obszaru z BottomBar) — na `/chat` bez paska zakładek pole
+              jest niżej, więc menu też, zamiast wisieć z dużą przerwą. Fallback
+              10rem, gdy zmiennej nie ma. */}
+          <div
+            style={{ bottom: "calc(var(--bottom-nav-h, 10rem) + 0.5rem)" }}
+            className="fixed inset-x-0 z-[55] flex justify-center px-4"
+          >
             <div
               className={cn(
                 "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { openLightbox, closeLightbox } from "@/lib/lightbox-store";
 
 interface LightboxImage {
   id: string;
@@ -30,15 +31,64 @@ export function PhotoLightbox({
 }: PhotoLightboxProps) {
   const count = images.length;
   const hasMany = count > 1;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const prev = () => onIndexChange((index - 1 + count) % count);
   const next = () => onIndexChange((index + 1) % count);
 
+  // Pułapka fokusu: przy otwarciu zapamiętujemy aktywny element (np. miniaturę,
+  // z której otwarto podgląd), przenosimy fokus do dialogu, a przy zamknięciu
+  // przywracamy go tam, gdzie był. Bez tego Tab uciekałby do treści pod modalem,
+  // a po zamknięciu fokus przepadał na <body>.
+  useEffect(() => {
+    const restoreTo = document.activeElement as HTMLElement | null;
+    containerRef.current?.focus();
+    return () => restoreTo?.focus?.();
+  }, []);
+
+  // Sygnalizujemy globalnie, że podgląd jest otwarty — dolny pasek (kompozytor
+  // + zakładki) chowa się na ten czas, by nie wisiał na wierzchu modala.
+  useEffect(() => {
+    openLightbox();
+    return closeLightbox;
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft" && hasMany) onIndexChange((index - 1 + count) % count);
-      else if (e.key === "ArrowRight" && hasMany) onIndexChange((index + 1) % count);
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "ArrowLeft" && hasMany) {
+        onIndexChange((index - 1 + count) % count);
+        return;
+      }
+      if (e.key === "ArrowRight" && hasMany) {
+        onIndexChange((index + 1) % count);
+        return;
+      }
+      // Tab krąży wyłącznie po przyciskach dialogu (zamknij + nawigacja).
+      if (e.key === "Tab") {
+        const container = containerRef.current;
+        if (!container) return;
+        const focusables = Array.from(
+          container.querySelectorAll<HTMLElement>("button")
+        ).filter((el) => !el.hasAttribute("disabled"));
+        if (focusables.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !container.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !container.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     // Blokada przewijania tła na czas otwartego podglądu.
@@ -55,7 +105,12 @@ export function PhotoLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 duration-200 animate-in fade-in"
+      ref={containerRef}
+      tabIndex={-1}
+      // h-dvh jawnie: samo `inset-0` (auto-wysokość z top+bottom) potrafi zostać
+      // „zacięte" krótsze niż viewport przy animacji wejścia (animate-in), przez
+      // co u dołu prześwitywał biały pasek tła strony. Jawna wysokość to omija.
+      className="fixed inset-0 z-50 flex h-dvh items-center justify-center bg-black/95 outline-none duration-200 animate-in fade-in"
       role="dialog"
       aria-modal="true"
       aria-label="Podgląd zdjęcia"

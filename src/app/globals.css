@@ -17,11 +17,23 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
+  /* Wyciszony tekst leżący na wyciszonym tle (bg-secondary/muted/accent) —
+     zwykły muted-foreground daje tam w jasnym motywie 4,34:1 (poniżej AA 4,5:1),
+     więc ten wariant jest ciemniejszy (~5,4:1 na secondary). */
+  --muted-foreground-onmuted: oklch(0.5 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /* Monochromatyczna poświata przycisków przy hover — czarne halo w jasnym
+     motywie (na białym tle czyta się jak miękki cień), białe w ciemnym. Jedna
+     zmienna zamiast kruchego dark:hover nad hover; color-mix w arbitralnej
+     wartości Tailwinda się nie parsuje, więc trzymamy gotowy kolor tutaj. */
+  --glow-hover: rgba(0, 0, 0, 0.22);
+  /* Obwódka pól formularza (WYŁĄCZNIE Input/Textarea — border-input). Dawne
+     0.922 dawało 1,26:1 na białym; komponenty UI wymagają 3:1 (WCAG 1.4.11),
+     stąd 0.66 (~3,1:1). Dekoracyjny --border celowo zostaje subtelny. */
+  --input: oklch(0.66 0 0);
   --ring: oklch(0.708 0 0);
 }
 
@@ -38,11 +50,18 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
+  /* W ciemnym motywie muted-foreground na secondary daje 5,8:1 (przechodzi),
+     więc wariant "onmuted" jest identyczny — zero zmiany wyglądu. */
+  --muted-foreground-onmuted: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  /* Ciemny motyw: białe halo (świeci na ciemnym tle). Zob. --glow-hover w :root. */
+  --glow-hover: rgba(255, 255, 255, 0.22);
+  /* Jak w jasnym motywie: 15% białego na tle dawało ~1,5:1, podbite do 35%
+     (~3,2:1 na background i card). */
+  --input: oklch(1 0 0 / 35%);
   --ring: oklch(0.556 0 0);
 }
 
@@ -59,6 +78,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-muted-foreground-onmuted: var(--muted-foreground-onmuted);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -268,6 +288,21 @@ html.no-anim .landing-reveal {
   .custom-scroll-wrap.show-scroll .scroll-thumb {
     transform: none;
   }
+}
+
+/* Przycisk „Nowy wpis": poświata przy hover, pierścień fokusu przy fokusie z
+   klawiatury. Poświata to box-shadow w kolorze `--glow-hover` (czarny w jasnym,
+   biały w ciemnym motywie) — arbitralna wartość `shadow-[…var()…]` w Tailwindzie
+   się nie generuje, więc trzymamy to tutaj (reguła bezwarstwowa wygrywa z
+   klasami). Fokus = `outline` z `--ring` (osobno, bo box-shadow na :focus-visible
+   bywa nadpisywany kompozycją cieni Tailwinda). Transition/active na elemencie;
+   wyłączane globalnym no-anim. */
+.hover-glow:hover {
+  box-shadow: 0 1px 22px -3px var(--glow-hover);
+}
+.hover-glow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Treść wpisu — wspólne style dla edytora TipTap i widoku szczegółu. */
