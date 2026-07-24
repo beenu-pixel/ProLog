@@ -158,6 +158,13 @@ Pojedynczy wpis:
 > Bardziej rozbudowany format (np. ustrukturyzowane formatowanie z TipTap) można wprowadzić
 > w kolejnych iteracjach — bez zmiany założeń Etapu 1.
 
+> **Uwaga dla czytelnika z przyszłości (model wpisu dziś):** tabela wyżej to zdjęcie stanu z
+> Etapu 1 — pojedyncze pole `nastrój`. Model ewoluował: `nastrój` rozpadł się na **5 osobnych
+> metryk** (`mood/sleep/energy/productivity/stress`, każda 1–5 — patrz 7.4), doszły opcjonalne
+> **zdjęcia** (`photos` — patrz 12.1) oraz pola synchronizacyjne **`localId`**/**`userId`**
+> (klucz deduplikacji między klientem a Strapi — patrz 15.1). Ta tabela zostaje jako dokument
+> punktu wyjścia, nie jako aktualny opis — nie edytujemy jej wstecznie.
+
 ---
 
 ## 4. Ekrany
@@ -169,6 +176,11 @@ Pojedynczy wpis:
 - Data ustawiana automatycznie (dzisiejsza) przy nowym wpisie.
 - Przycisk "Zapisz" — dodaje wpis do listy i czyści formularz / przenosi na listę.
 - Ten sam ekran działa w trybie edycji: wczytuje istniejący wpis i nadpisuje go po zapisie.
+
+> **Uwaga dla czytelnika z przyszłości:** opis wyżej to Ekran 1 z Etapu 1 — jeden formularz.
+> Dodawanie nowego wpisu ewoluowało w **kreator sześciokrokowy** (jedno pytanie na krok, każdy
+> pomijalny) — patrz 12.2 co do bieżącego flow; ten formularz jednoekranowy pozostaje w trybie
+> **edycji** istniejącego wpisu.
 
 ### Ekran 2 — Lista wpisów
 - Chronologiczna lista wszystkich wpisów (najnowsze na górze).
@@ -396,10 +408,26 @@ dziennikiem, a także udostępnienie dziennika programistycznie (API + MCP).
 
 ### 8.2 Cyfrowy terapeuta — 5 person
 - Czat nad wpisami przez **`/api/therapist`** (model **xAI Grok 4.3**, klucz `XAI_API_KEY`
-  serwerowo). Dostępnych jest **5 person** (m.in. psychoanalityczny „Freud”), z różnymi stylami
+  serwerowo). Dostępnych jest **5 person**, z różnymi stylami
   rozmowy, przełączanych **przełącznikiem w stylu Gemini**; te same persony prezentuje
   **karuzela na landingu**. Limit zużycia AI jest **wspólny dla wszystkich person** (zmiana
   persony nie resetuje licznika — patrz 11.2).
+
+  **Pełna piątka** (nazwa, rola, tagline z `src/lib/therapists.ts` / karuzeli landingu):
+
+  | Persona | Rola | Tagline |
+  |---|---|---|
+  | Zygmunt Freud | Psychoanalityk | „Architekt podświadomości — czyta między wierszami snów, lęków i przejęzyczeń.” |
+  | Marek Aureliusz | Cesarz stoik | „Stoicka forteca — uczy odróżniać to, co zależy od ciebie, od tego, na co nie masz wpływu.” |
+  | Carl Gustav Jung | Psycholog analityczny | „Odkrywca Cienia — prowadzi przez mity i symbole ku pełni (indywiduacji).” |
+  | Arystoteles | Filozof praktyczny | „Mistrz nawyków i złotego środka — szczęście to nie rzecz, lecz sposób działania.” |
+  | Lou Marinoff | Doradca filozoficzny | „Pogromca iluzji — zamiast diagnozy daje jaśniejszą filozofię (metoda PEACE).” |
+
+  Nagłówek sekcji person na landingu: „Pięć umysłów, jeden dziennik”. Freud pozostaje personą
+  **domyślną** i jedyną dostępną na planie Free (patrz 13.2) — stąd wcześniejsze wzmianki o
+  „Freudzie” jako przykładzie w tym dokumencie; **`ask_agent` (REST/MCP, 8.3/8.4) nie wystawia
+  wyboru persony i zawsze rozmawia z Freudem** — wybór z pełnej piątki dotyczy wyłącznie czatu
+  w UI (`/api/therapist`).
 - **Kontekst warstwowy** pod cache xAI: persona (system) → dziennik (system) → historia
   rozmowy → świeży kontekst UI dołączony do ostatniego pytania użytkownika. Sam dziennik jest
   budowany przez wyszukiwanie hybrydowe (RAG) — patrz 8.6.
@@ -577,6 +605,13 @@ same zdjęcia albo oba). Zamyka to pozycję „załączniki” z pierwotnego *po
 - **Dodawanie tylko po zalogowaniu** (jak funkcje AI — prywatny bucket): przycisk „Zdjęcie”
   w pasku narzędzi edytora + `photo-field` (siatka miniatur, podgląd przed zapisem) w kreatorze
   i edycji.
+- **Kreator sześciokrokowy (`entry-wizard.tsx`) zastąpił jednoekranowy formularz jako flow
+  dodawania nowego wpisu.** Każdy krok to jedno pytanie („Krok 1 z 6” … „Krok 6 z 6”) z opcją
+  **„Pomiń”**: kroki 1–5 zbierają po jednej metryce (np. „Jak Ci się spało?”, 5 opcji + Pomiń —
+  patrz 7.4 o metrykach), krok 6 łączy tytuł + treść (TipTap: pogrubienie/kursywa/listy,
+  **Dyktuj**, **Zdjęcie**) + zapis. Obniża próg wejścia (nie trzeba wypełniać wszystkiego naraz)
+  i jest spójny z regułą zapisu z 12.3. Formularz jednoekranowy (Ekran 1, §4) pozostaje w użyciu
+  wyłącznie w trybie **edycji** istniejącego wpisu.
 - **Wyświetlanie:** `photo-gallery` (siatka, max 4 kafelki + „+N”) i `photo-lightbox`
   (pełny ekran, ← →, Esc) renderowane **pod treścią** (szczegół wpisu i mobilny widok dnia);
   na liście wpis ze zdjęciem ma dyskretną ikonę.
@@ -801,6 +836,24 @@ użytkownicy/wektory/zdjęcia → Supabase, płatności → Stripe.
   sygnał): migracja Strapi z Railwaya na **darmowy hosting** (kandydat: własny NAS + Tailscale Funnel),
   z zachowaniem architektury „źródło prawdy + indeks wektorowy”. Nie blokuje bieżącego działania.
 
+### 15.6 Braki potwierdzone w audycie AX — do backlogu (nie „świadomie zaakceptowane”)
+
+W odróżnieniu od 15.5 (kompromisy przyjęte świadomie), poniższe to realne luki znalezione przy
+audycie powierzchni dla agentów (REST/MCP) w 2026-07-24 — nikt ich wcześniej nie zaakceptował,
+warto je zaplanować:
+
+- **`create_entry` (REST i MCP) nie jest idempotentne.** Mimo że model wpisu ma `localId` jako
+  klucz deduplikacji po stronie Strapi (15.1), serwis `createEntry` (`src/lib/services/entries.ts`)
+  **nie czyta `localId` z wejścia** — generuje własne `id` (`crypto.randomUUID()`) przy każdym
+  wywołaniu. Agent, który powtórzy wywołanie (np. po timeout/retry sieciowym), utworzy **duplikat
+  wpisu** zamiast nadpisać istniejący. Naprawa: przyjmować opcjonalny `localId` z wejścia REST/MCP
+  i przekazywać go do `upsertEntry` zamiast generować nowy za każdym razem.
+- **Reguła zapisu `canSaveEntry` (12.3: tekst albo zdjęcie+metryka) obowiązuje wyłącznie w UI**,
+  nie w serwisie współdzielonym `createEntry` — REST/MCP przyjmą dziś wpis, którego UI by nie
+  zapisało (wystarczy niepusty `content`; `photos` nawet nie jest polem, które `create_entry`
+  przyjmuje — patrz 8.3/8.4). Konsekwencja opisana już w 12.3; tu odnotowana wprost jako pozycja
+  do przeniesienia reguły do warstwy serwisu, żeby REST/MCP i UI miały tę samą walidację.
+
 ---
 
 ## 16. Etap 9 — Nawigacja mobilna i pełnoekranowy czat (zrealizowane)
@@ -995,5 +1048,9 @@ wydajności i stanów brzegowych.
 | 2026-07-23  | Fokus klawiatury: widoczny ring na kompozytorze; pułapka fokusu w pełnoekranowym `photo-lightbox.tsx`; dolny pasek chowa się pod lightboxem (`lightbox-store.ts`); naprawiony biały pasek u dołu lightboxa (`h-dvh`). | 10 |
 | 2026-07-23  | Wydajność landingu: `marcus-points.bin` 1,44→0,69 MB (usunięte nieużywane normalne z chmury punktów 3D); zdjęcia terapeutów/postera jpg→webp, ~1,02→0,39 MB. | 10 |
 | 2026-07-23  | Szlif UI: wyśrodkowany przycisk „Wróć” w `/chat`; „Nowy wpis”/„Konto” wyrównane wysokością, kolorystyka odwrócona jak mikrofon + poświata przy hover i pierścień przy fokusie. | 10 |
+| 2026-07-24  | Doprecyzowanie dokumentacji (audyt AX): pełna piątka person nazwana wprost w 8.2 (było tylko „Freud” jako przykład); nota, że `ask_agent` (REST/MCP) zawsze rozmawia z Freudem, bez wyboru persony. | 3 |
+| 2026-07-24  | Doprecyzowanie dokumentacji: przypis w §3 łączący model wpisu z Etapu 1 z aktualnym stanem (5 metryk, `photos`, `localId`/`userId` — patrz 7.4/12.1/15.1). | 1/8 |
+| 2026-07-24  | Udokumentowany kreator sześciokrokowy (`entry-wizard.tsx`) jako flow dodawania wpisu w 12.2 (nie występował w PRD); formularz z §4 pozostaje aktualny tylko dla edycji. | 5 |
+| 2026-07-24  | Nowa sekcja 15.6 „Braki potwierdzone w audycie AX”: `create_entry` nieidempotentne (ignoruje `localId`, generuje nowy `id`) i `canSaveEntry` egzekwowane tylko w UI — do backlogu. | 8 |
 
 > Daty wg historii gita; etap orientacyjnie (część zmian dotyczy więcej niż jednego obszaru).
