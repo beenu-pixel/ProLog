@@ -25,6 +25,10 @@ import { cn } from "@/lib/utils";
  * `thumbRight` przesuwa thumb w poziomie: ujemne = w rynnie poza treścią (lista
  * wpisów), dodatnie = tuż przy wewnętrznej krawędzi (panel czatu).
  *
+ * Thumb da się CHWYCIĆ myszą (jak natywny pasek): `pointer-down` na nim zaczyna
+ * przeciąganie, ruch przelicza się na `scrollTop`. Powiększone pole trafienia
+ * (pseudoelement `::after` w CSS) sprawia, że nie trzeba celować w 7 px.
+ *
  * Wysokość obszaru przewijania ustala `contentClassName`: w kolumnie o znanej
  * wysokości użyj `h-full` (lista wpisów wypełnia `flex-1`); gdzie wysokości brak —
  * `max-h-[...]`, by panel rósł z treścią i przewijał się po przekroczeniu (czat).
@@ -52,11 +56,14 @@ export function CustomScroll({
   // Auto-ukrywanie po przewinięciu oraz flaga „kursor przy prawej krawędzi".
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nearEdgeRef = useRef(false);
+  // Trwające przeciąganie thumba (pasek zostaje widoczny do puszczenia myszy).
+  const draggingRef = useRef(false);
 
   const showThumb = useCallback(() => {
     wrapRef.current?.classList.add("show-scroll");
   }, []);
   const hideThumb = useCallback(() => {
+    if (draggingRef.current) return; // w trakcie przeciągania pasek zostaje
     wrapRef.current?.classList.remove("show-scroll");
   }, []);
 
@@ -116,6 +123,58 @@ export function CustomScroll({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Chwytanie paska myszą: przesunięcie kursora o `dy` przekłada się na scroll w
+  // proporcji (droga treści) / (droga thumba), więc thumb trzyma się kursora.
+  const handleThumbPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const sc = scrollRef.current;
+      const th = thumbRef.current;
+      if (!sc || !th || e.button !== 0) return;
+      e.preventDefault(); // bez zaznaczania tekstu podczas przeciągania
+      const startY = e.clientY;
+      const startTop = sc.scrollTop;
+      const thumbH = th.offsetHeight;
+      const maxThumbTop = sc.clientHeight - thumbH;
+      const maxScroll = sc.scrollHeight - sc.clientHeight;
+      if (maxThumbTop <= 0 || maxScroll <= 0) return;
+
+      draggingRef.current = true;
+      try {
+        th.setPointerCapture(e.pointerId);
+      } catch {
+        // brak przechwycenia to nie problem — ruch śledzimy na oknie
+      }
+      document.body.classList.add("scroll-dragging");
+      showThumb();
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+
+      const onMove = (ev: PointerEvent) => {
+        const next = startTop + ((ev.clientY - startY) * maxScroll) / maxThumbTop;
+        sc.scrollTop = Math.min(maxScroll, Math.max(0, next));
+      };
+      const onUp = (ev: PointerEvent) => {
+        draggingRef.current = false;
+        document.body.classList.remove("scroll-dragging");
+        try {
+          th.releasePointerCapture(ev.pointerId);
+        } catch {}
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        if (!nearEdgeRef.current) hideThumb();
+      };
+      // Nasłuch na oknie: kursor może wyjechać poza thumb/kontener w trakcie
+      // przeciągania i przewijanie ma dalej podążać za myszą.
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    [showThumb, hideThumb, scrollRef]
+  );
+
   // Realne przewijanie (kółko/trackpad/klawiatura): pokaż pasek i zaplanuj jego
   // schowanie chwilę po zatrzymaniu — chyba że kursor czeka przy krawędzi.
   const handleScroll = useCallback(() => {
@@ -169,7 +228,13 @@ export function CustomScroll({
       >
         {children}
       </div>
-      <div ref={thumbRef} className="scroll-thumb" style={{ right: thumbRight }} aria-hidden />
+      <div
+        ref={thumbRef}
+        className="scroll-thumb"
+        style={{ right: thumbRight }}
+        onPointerDown={handleThumbPointerDown}
+        aria-hidden
+      />
     </div>
   );
 }
