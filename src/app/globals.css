@@ -272,12 +272,41 @@ html.no-anim .landing-reveal {
   /* Wjazd z prawej (opacity + translateX), a szerokość rozszerza się PO wjeździe
      (delay 180 ms) — efekt „pastylka wjeżdża i rozszerza się na pełną szerokość". */
   transition: opacity 160ms ease, transform 220ms ease, width 160ms ease 180ms;
+  /* Schowany pasek nie łapie kliknięć; widoczny — owszem (da się go chwycić). */
   pointer-events: none;
+  cursor: grab;
+  touch-action: none;
+}
+/* Powiększone pole trafienia: celowanie w 7 px byłoby uciążliwe, więc thumb
+   „zbiera" kliknięcia z kilku pikseli wokół siebie. */
+.scroll-thumb::after {
+  content: "";
+  position: absolute;
+  inset: -4px -9px;
 }
 .custom-scroll-wrap.show-scroll .scroll-thumb {
   opacity: 1;
   transform: translateX(0);
   width: 7px; /* pełna szerokość */
+}
+/* Chwytać pasek da się tylko myszą — na dotyku strefa przy krawędzi ma
+   pozostać przewijalna palcem, a nie przechwytywać gest. */
+@media (hover: hover) and (pointer: fine) {
+  .custom-scroll-wrap.show-scroll .scroll-thumb {
+    pointer-events: auto;
+  }
+}
+.custom-scroll-wrap.show-scroll .scroll-thumb:hover,
+body.scroll-dragging .scroll-thumb {
+  background-color: color-mix(in oklch, var(--muted-foreground) 85%, transparent);
+}
+/* Podczas przeciągania: kursor „trzymania" i bez zaznaczania tekstu. */
+body.scroll-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+body.scroll-dragging .scroll-thumb {
+  cursor: grabbing;
 }
 @media (prefers-reduced-motion: reduce) {
   .scroll-thumb {

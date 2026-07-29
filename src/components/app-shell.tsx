@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
 import { BottomBar } from "@/components/bottom-bar";
+import { WindowScroll } from "@/components/window-scroll";
 import { useAnimationsEnabled } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +62,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <BottomBar />
+      {/* Trasy przewijane oknem (np. /docs) dostają ten sam animowany pasek co
+          panele z własnym scrollem — zamiast natywnego paska przeglądarki. */}
+      {!locked && !bare && <WindowScroll />}
     </div>
   );
 }
