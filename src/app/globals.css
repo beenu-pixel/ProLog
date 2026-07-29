@@ -102,21 +102,53 @@
   animation-timing-function: ease;
 }
 
-/* Kciuk przełącznika motywu (theme-thumb) jest osobną grupą View Transitions:
-   nie miesza się z crossfadem całej strony. Grupa płynnie przesuwa go (slide),
-   a kolor i ikonę (księżyc↔słońce) przechodzi crossfadem View Transitions. */
+/* Turlanie kciuka przełącznika motywu.
+
+   Element z `view-transition-name` oddaje swój `transform` grupie VT, więc
+   `rotate` nałożony na sam kciuk byłby w czasie przejścia niewidoczny. Podział
+   pracy jest więc taki:
+   - PRZEJAZD robi grupa `::view-transition-group(theme-thumb)` (animacja UA),
+   - OBRÓT dokładamy własnym keyframe'em na `::view-transition-new(...)`: kulka
+     startuje odchylona o kąt toczenia i „dokręca się" do pionu, przez co jedzie
+     jak tocząca się kula. W spoczynku obrotu nie ma — księżyc stoi prosto.
+   Stary zrzut chowamy, bo „nowy" jest żywy (widać w nim morf księżyc→słońce). */
 ::view-transition-group(theme-thumb) {
   animation-duration: 350ms;
   animation-timing-function: ease;
 }
-::view-transition-old(theme-thumb),
+::view-transition-old(theme-thumb) {
+  display: none;
+}
 ::view-transition-new(theme-thumb) {
-  /* Płynny crossfade kciuka (księżyc↔słońce, kolor) na czas slide'u grupy.
-     Całą animację robi View Transitions — bez nakładających się przejść CSS na
-     samym elemencie, które wcześniej powodowały miganie. */
-  animation-duration: 350ms;
-  animation-timing-function: ease;
   mix-blend-mode: normal;
+  animation: 350ms ease both theme-roll-cw;
+}
+/* Kąt = droga / promień: kulka o r = 10 px pokonuje 20 px → 2 rad ≈ 114.6°. */
+@keyframes theme-roll-cw {
+  from {
+    transform: rotate(-114.59deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+@keyframes theme-roll-ccw {
+  from {
+    transform: rotate(114.59deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+/* Powrót w stronę dnia — kulka jedzie w lewo, więc turla się w drugą stronę. */
+html.theme-roll-left::view-transition-new(theme-thumb) {
+  animation-name: theme-roll-ccw;
+}
+
+/* Kształty ikony księżyc↔słońce transformują się względem układu `viewBox`, więc
+   `origin-center` wypada dokładnie w środku ikony (12 12), a nie w rogu ramki. */
+.theme-thumb-shape {
+  transform-box: view-box;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -124,6 +156,14 @@
   ::view-transition-new(root),
   ::view-transition-group(theme-thumb) {
     animation: none;
+  }
+  /* Bez turlania i bez morfu — kciuk i ikona przeskakują w docelowy stan. */
+  ::view-transition-new(theme-thumb) {
+    animation: none;
+  }
+  .theme-thumb,
+  .theme-thumb * {
+    transition: none !important;
   }
 }
 
