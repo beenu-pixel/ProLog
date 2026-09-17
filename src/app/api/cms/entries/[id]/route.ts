@@ -1,5 +1,5 @@
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
-import { deleteEntryByLocalId } from "@/lib/services/cms-entries";
+import { deleteEntryByLocalId } from "@/lib/services/journal-entries";
 import { deleteEntryIndex } from "@/lib/services/entry-index";
 
 // Usuwanie pojedynczego wpisu po `localId` (= id z localStorage). Auth sesją Supabase.

@@ -1,14 +1,14 @@
 import { ApiError } from "@/lib/api-error";
 import { embedText } from "@/lib/services/embeddings";
 import { matchEntries, recentEntryRefs } from "@/lib/services/entry-index";
-import { getEntriesByLocalIds } from "@/lib/services/cms-entries";
+import { getEntriesByLocalIds } from "@/lib/services/journal-entries";
 import type { Entry } from "@/lib/types";
 
-// Wyszukiwanie dla RAG i wyszukiwarki UI po przejściu na Strapi jako źródło prawdy:
-//  - WEKTOR: indeks `entry_index` w Supabase (embedding + link) → RPC `match_entries`,
+// Wyszukiwanie dla RAG i wyszukiwarki UI:
+//  - WEKTOR: indeks `entry_index` w Supabase (embedding) → RPC `match_entries`,
 //  - RECENCY: zawsze dołączane wpisy z ostatnich N dni (po `entry_date` z indeksu),
-//  - TREŚĆ: dociągana ze Strapi po `localId` (źródło prawdy).
-// Część leksykalna (full-text) hybrydy została wycofana wraz z migracją — zostaje
+//  - TREŚĆ: dociągana z `public.entries` po id (źródło prawdy).
+// Część leksykalna (full-text) hybrydy jest wycofana — zostaje
 // wyszukiwanie wektorowe. Ten sam serwis zasila wyszukiwarkę UI i agenta (RAG).
 
 /** Skąd pochodzi wpis w wynikach: z wyszukiwania, z okna ostatnich dni, lub z obu. */
@@ -57,7 +57,7 @@ export function normalizeSearchLimits(options: HybridSearchOptions = {}): {
  * Wyszukiwanie dla użytkownika. Zwraca posortowaną listę `SearchHit`: najpierw
  * trafienia wektorowe (te będące też w oknie ostatnich dni mają `source: 'both'`),
  * potem dodatkowe wpisy z ostatnich dni (`source: 'recent'`). Bez duplikatów.
- * Treść wpisów dociągana ze Strapi. Rzuca `ApiError`/`EmbeddingError`.
+ * Treść wpisów dociągana z `public.entries`. Rzuca `ApiError`/`EmbeddingError`.
  */
 export async function hybridSearch(
   userId: string,
@@ -99,7 +99,7 @@ export async function hybridSearch(
 
   if (order.length === 0) return [];
 
-  // 5) Treść ze Strapi (źródło prawdy) po localId; zachowujemy ustaloną kolejność.
+  // 5) Treść z `public.entries` (źródło prawdy) po id; zachowujemy ustaloną kolejność.
   const entries = await getEntriesByLocalIds(userId, order.map((o) => o.localId));
   const byId = new Map(entries.map((e) => [e.id, e]));
 

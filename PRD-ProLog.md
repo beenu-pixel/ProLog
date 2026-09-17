@@ -49,6 +49,8 @@ Co już działa w aplikacji:
   synchronizacja dwukierunkowa przez proxy `/api/cms/entries`; **Supabase** zdegradowany do roli
   **indeksu wektorowego** (`entry_index`: embedding + link do Strapi), zdjęcia dalej w Supabase
   Storage (linki w Strapi); analityka **PostHog** (nagrania + heatmapy, region EU, maskowanie treści).
+  **Aktualizacja (09.2026):** Strapi wycofany (koszt Railwaya) — źródłem prawdy wpisów jest znów
+  Supabase `public.entries` (patrz 15.7).
 - **Nawigacja mobilna + czat (Etap 9):** stały **dolny pasek zakładek** (Dziennik / Nowy wpis /
   Rozmowa) na mobilce, kompozytor pływa nad nim; rozmowa z terapeutą jako **pełnoekranowa trasa
   `/chat`** (systemowy „wstecz”, wyjście „Wróć” w nagłówku); kompozytor ma **tryb z kontekstu**
@@ -835,6 +837,18 @@ użytkownicy/wektory/zdjęcia → Supabase, płatności → Stripe.
   Strapi gasną, chyba że nastąpi upgrade do płatnego planu. **Plan na przyszłość** (do wykonania na
   sygnał): migracja Strapi z Railwaya na **darmowy hosting** (kandydat: własny NAS + Tailscale Funnel),
   z zachowaniem architektury „źródło prawdy + indeks wektorowy”. Nie blokuje bieżącego działania.
+
+### 15.7 Wycofanie Strapi — powrót wpisów do Supabase (09.2026)
+- Powód: po końcu kredytu Trial Railway wymagał planu Hobby (~$5/mies.), a Strapi pełnił jedną rolę
+  (przechowywanie wpisów), którą Supabase obsługuje na darmowym planie.
+- Migracja danych: `scripts/migrate-entries-from-strapi.mjs` — eksport JSON ze Strapi
+  (backup w `prolog-cms/backup/`), upsert do `public.entries` po `id` (= `localId`), usunięcie
+  wpisów nieobecnych w Strapi. Stan końcowy tabeli = stan Strapi.
+- Kod: `src/lib/services/cms-entries.ts` zastąpiony przez `journal-entries.ts` (te same funkcje,
+  Supabase kluczem sekretnym, filtr po `user_id`). Ścieżka `/api/cms/entries` i klient `sync.ts`
+  bez zmian. Indeks `entry_index` bez zmian (kolumna `strapi_doc_id` nieużywana).
+- Ryzyko: darmowy projekt Supabase usypia się po ~7 dniach bez ruchu (wtedy nie działa logowanie
+  ani zapis) — wybudzenie w panelu Supabase.
 
 ### 15.6 Braki potwierdzone w audycie AX — do backlogu (nie „świadomie zaakceptowane”)
 

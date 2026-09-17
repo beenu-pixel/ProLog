@@ -1,5 +1,5 @@
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
-import { listEntriesByUser, upsertEntry } from "@/lib/services/cms-entries";
+import { listEntriesByUser, upsertEntry } from "@/lib/services/journal-entries";
 import { upsertEntryIndex } from "@/lib/services/entry-index";
 import {
   enforceRateLimit,
@@ -9,8 +9,9 @@ import {
 import { sanitizeEntryHtml } from "@/lib/sanitize";
 import type { Entry } from "@/lib/types";
 
-// Serwerowy proxy do Strapi dla wpisów dziennika. Klient (warstwa sync) woła te
-// route'y zamiast pisać wprost do bazy — token Strapi zostaje na serwerze.
+// Serwerowe API wpisów dziennika (źródło prawdy: Supabase `public.entries`). Klient
+// (warstwa sync) woła te route'y zamiast pisać wprost do bazy — klucz sekretny zostaje
+// na serwerze. Ścieżka `/api/cms` to pozostałość po Strapi (zachowana dla zgodności).
 // Auth: sesja Supabase (JWT) → `userId` właściciela wpisów.
 
 // Maksymalna liczba wpisów w jednym żądaniu bulk (anty-abuse; chroni przed
@@ -65,16 +66,15 @@ export async function POST(request: Request) {
       // Sanityzacja treści na granicy zapisu (defense-in-depth) — treść to HTML
       // z edytora; render też sanityzuje, ale nie trzymamy w bazie surowego markup.
       const clean: Entry = { ...entry, content: sanitizeEntryHtml(entry.content ?? "") };
-      const cms = await upsertEntry(auth.userId, clean);
-      saved.push(cms);
-      // Indeks wektorowy (embedding + link) — best-effort, nie blokuje zapisu treści.
+      const stored = await upsertEntry(auth.userId, clean);
+      saved.push(stored);
+      // Indeks wektorowy (embedding) — best-effort, nie blokuje zapisu treści.
       await upsertEntryIndex({
-        localId: cms.id,
-        strapiDocId: cms.strapiDocId,
+        localId: stored.id,
         userId: auth.userId,
-        title: cms.title,
-        content: cms.content,
-        entryDate: cms.createdAt,
+        title: stored.title,
+        content: stored.content,
+        entryDate: stored.createdAt,
       });
     }
     return Response.json({ entries: saved });
