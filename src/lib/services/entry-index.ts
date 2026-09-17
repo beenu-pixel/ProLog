@@ -3,15 +3,14 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { buildEmbeddingInput, embedText } from "@/lib/services/embeddings";
 
-// Indeks wyszukiwania w Supabase: per wpis tylko embedding + link do Strapi
-// (tabela `public.entry_index`). Treść = Strapi (źródło prawdy); tu trzymamy wektor,
-// by zachować wyszukiwanie wektorowe (RAG terapeuty). Wszystkie operacje best-effort —
-// błąd indeksu nie może wywrócić zapisu wpisu w Strapi.
+// Indeks wyszukiwania w Supabase: per wpis embedding + id wpisu (tabela `public.entry_index`).
+// Treść = `public.entries` (źródło prawdy); tu trzymamy wektor, by zachować wyszukiwanie
+// wektorowe (RAG terapeuty). Wszystkie operacje best-effort — błąd indeksu nie może
+// wywrócić zapisu wpisu. Kolumna `strapi_doc_id` to pozostałość po Strapi (już nieużywana).
 
 /** Upsert wiersza indeksu. Embedding liczony best-effort; gdy padnie → wiersz bez wektora (zostaje link + data). */
 export async function upsertEntryIndex(params: {
   localId: string;
-  strapiDocId: string;
   userId: string;
   title: string;
   content: string;
@@ -29,7 +28,6 @@ export async function upsertEntryIndex(params: {
 
   const { error } = await supabaseAdmin.from("entry_index").upsert({
     local_id: params.localId,
-    strapi_doc_id: params.strapiDocId,
     user_id: params.userId,
     embedding,
     entry_date: params.entryDate,
@@ -47,7 +45,6 @@ export async function deleteEntryIndex(localId: string): Promise<void> {
 
 export type EntryMatch = {
   localId: string;
-  strapiDocId: string | null;
   entryDate: string | null;
   similarity: number;
 };
@@ -70,7 +67,6 @@ export async function matchEntries(
   }
   return (data ?? []).map((r: Record<string, unknown>) => ({
     localId: r.local_id as string,
-    strapiDocId: (r.strapi_doc_id as string) ?? null,
     entryDate: (r.entry_date as string) ?? null,
     similarity: Number(r.similarity ?? 0),
   }));
@@ -86,7 +82,7 @@ export async function recentEntryRefs(
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
   const { data, error } = await supabaseAdmin
     .from("entry_index")
-    .select("local_id, strapi_doc_id, entry_date")
+    .select("local_id, entry_date")
     .eq("user_id", userId)
     .gte("entry_date", since)
     .order("entry_date", { ascending: false })
@@ -97,7 +93,6 @@ export async function recentEntryRefs(
   }
   return (data ?? []).map((r) => ({
     localId: r.local_id as string,
-    strapiDocId: (r.strapi_doc_id as string) ?? null,
     entryDate: (r.entry_date as string) ?? null,
     similarity: 0,
   }));

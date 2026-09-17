@@ -1,5 +1,5 @@
 import { recentDaysRangeUtc } from "@/lib/api-day";
-import { getEntriesByDateRange } from "@/lib/services/cms-entries";
+import { getEntriesByDateRange } from "@/lib/services/journal-entries";
 import { buildJournalContext } from "@/lib/therapist-context";
 import { ApiError } from "@/lib/api-error";
 import type { ReportPeriod } from "@/lib/plans";
@@ -56,7 +56,7 @@ export async function generateReport(
   try {
     entries = await getEntriesByDateRange(userId, startUtc, endUtc);
   } catch (err) {
-    console.error("[services/reports] pobranie wpisów (Strapi) nieudane:", err);
+    console.error("[services/reports] pobranie wpisów nieudane:", err);
     throw new ApiError(502, "Nie udało się pobrać wpisów do raportu.");
   }
 

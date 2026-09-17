@@ -4,8 +4,8 @@ import type { Entry } from "@/lib/types";
 
 /**
  * Warstwa „mirror": localStorage pozostaje reaktywnym źródłem prawdy dla UI,
- * a każdy zapis jest dodatkowo synchronizowany ze **Strapi** (źródło prawdy treści)
- * przez serwerowe route'y `/api/cms/entries`. Token Strapi zostaje na serwerze —
+ * a każdy zapis jest dodatkowo synchronizowany z **Supabase** (`public.entries`, źródło
+ * prawdy treści) przez serwerowe route'y `/api/cms/entries`. Klucz sekretny zostaje na serwerze —
  * klient uwierzytelnia się sesją Supabase (JWT w nagłówku Authorization).
  *
  * Wszystkie funkcje są best-effort — nigdy nie blokują UI ani nie rzucają wyjątkiem.
@@ -21,7 +21,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
-/** Wypycha pojedynczy wpis do Strapi (upsert po `localId` po stronie serwera). */
+/** Wypycha pojedynczy wpis na serwer (upsert po `id`). */
 export function pushEntry(entry: Entry): void {
   void (async () => {
     try {
@@ -39,7 +39,7 @@ export function pushEntry(entry: Entry): void {
 }
 
 /**
- * Usuwa wpis w Strapi. Zwraca `true`, gdy usunięcie potwierdzone; `false` przy
+ * Usuwa wpis na serwerze. Zwraca `true`, gdy usunięcie potwierdzone; `false` przy
  * braku sesji/konfiguracji lub błędzie. Wołający (storage) zdejmuje „nagrobek"
  * dopiero po potwierdzeniu — inaczej usunięty wpis mógłby wrócić przy `pullAll`.
  */
@@ -58,10 +58,10 @@ export async function deleteRemote(id: string): Promise<boolean> {
 }
 
 /**
- * Pobiera wszystkie wpisy zalogowanego użytkownika ze Strapi. Best-effort: przy
+ * Pobiera wszystkie wpisy zalogowanego użytkownika z serwera. Best-effort: przy
  * braku sesji/konfiguracji lub błędzie zwraca pustą listę (nigdy nie rzuca).
  * Używane przy logowaniu/odświeżeniu, by localStorage dogonił stan z chmury
- * (również wpisy dodane bezpośrednio w panelu Strapi).
+ * (również wpisy dodane w innej przeglądarce albo przez REST/MCP).
  */
 export async function pullAll(): Promise<Entry[]> {
   try {
@@ -77,7 +77,7 @@ export async function pullAll(): Promise<Entry[]> {
 }
 
 /**
- * Bulk-upsert wszystkich wpisów — wołane po zalogowaniu, by Strapi dogonił stan
+ * Bulk-upsert wszystkich wpisów — wołane po zalogowaniu, by serwer dogonił stan
  * lokalny. Pomija wpisy-seedy (wypełniacz demonstracyjny) — nie należą do konta.
  */
 export function pushAll(entries: Entry[]): void {

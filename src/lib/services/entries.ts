@@ -2,13 +2,13 @@ import { isValidDayKey, todayWarsaw, noonUtcForDay, dayRangeUtc } from "@/lib/ap
 import { deriveTitle } from "@/lib/api-entry";
 import { ApiError } from "@/lib/api-error";
 import { sanitizeEntryHtml } from "@/lib/sanitize";
-import { upsertEntry, getEntriesByDateRange } from "@/lib/services/cms-entries";
+import { upsertEntry, getEntriesByDateRange } from "@/lib/services/journal-entries";
 import { upsertEntryIndex } from "@/lib/services/entry-index";
 import type { Entry, MetricKey, Scale } from "@/lib/types";
 
 // Serwis wpisów — jedna implementacja używana przez REST (/api/v1/entries) i MCP.
-// Po migracji ŹRÓDŁEM PRAWDY jest Strapi: zapis idzie do Strapi (upsert po localId),
-// a do Supabase trafia tylko indeks wektorowy (embedding + link) — best-effort.
+// Źródło prawdy: tabela `public.entries` (upsert po id); obok indeks wektorowy
+// `entry_index` (embedding) — best-effort.
 
 const METRIC_KEYS: MetricKey[] = [
   "sleep",
@@ -27,7 +27,7 @@ function parseScale(value: unknown): number | null | false {
 }
 
 /**
- * Tworzy nowy wpis dla użytkownika (źródło prawdy = Strapi). Domyślnie na dziś
+ * Tworzy nowy wpis dla użytkownika (źródło prawdy = `public.entries`). Domyślnie na dziś
  * (Europe/Warsaw); tytuł generowany z treści. Rzuca `ApiError` przy złych danych
  * (400) lub błędzie zapisu (502).
  */
@@ -74,14 +74,13 @@ export async function createEntry(
   try {
     saved = await upsertEntry(userId, entry);
   } catch (err) {
-    console.error("[services/entries] strapi upsert failed:", err);
+    console.error("[services/entries] upsert failed:", err);
     throw new ApiError(502, "Nie udało się zapisać wpisu.");
   }
 
-  // Indeks wektorowy (embedding + link) — best-effort, nie wywraca zapisu.
+  // Indeks wektorowy (embedding) — best-effort, nie wywraca zapisu.
   await upsertEntryIndex({
     localId: saved.id,
-    strapiDocId: saved.strapiDocId,
     userId,
     title: saved.title,
     content: saved.content,
@@ -92,7 +91,7 @@ export async function createEntry(
 }
 
 /**
- * Zwraca wpis(y) użytkownika z danego dnia (Europe/Warsaw) ze Strapi. Rzuca
+ * Zwraca wpis(y) użytkownika z danego dnia (Europe/Warsaw). Rzuca
  * `ApiError` przy złym formacie daty (400) lub błędzie odczytu (502).
  */
 export async function getEntriesForDay(
@@ -108,7 +107,7 @@ export async function getEntriesForDay(
     const entries = await getEntriesByDateRange(userId, startUtc, endUtc);
     return { date, entries };
   } catch (err) {
-    console.error("[services/entries] strapi read failed:", err);
+    console.error("[services/entries] read failed:", err);
     throw new ApiError(502, "Nie udało się pobrać wpisów.");
   }
 }
