@@ -72,8 +72,9 @@ export function LandingHero() {
       id="gora"
       className="relative mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-6 pt-16 pb-20 lg:grid lg:grid-cols-2 lg:items-center lg:gap-8 lg:px-8 lg:pt-24 lg:pb-28"
     >
-      {/* Treść — natychmiast widoczna, dobra dla SEO */}
-      <div className="order-2 max-w-xl text-center lg:order-1 lg:text-left">
+      {/* Treść — natychmiast widoczna, dobra dla SEO. Na mobile idzie przed
+          popiersiem: inaczej nagłówek i CTA lądują poza pierwszym ekranem. */}
+      <div className="order-1 max-w-xl text-center lg:text-left">
         <p className="landing-fade-up text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
           Dziennik w duchu stoicyzmu
         </p>
@@ -101,7 +102,7 @@ export function LandingHero() {
       </div>
 
       {/* Scena 3D / poster popiersia */}
-      <div className="order-1 w-full lg:order-2">
+      <div className="order-2 w-full">
         <div
           ref={stageRef}
           className="relative mx-auto aspect-[3/4] w-full max-w-sm sm:max-w-md lg:max-w-none"
