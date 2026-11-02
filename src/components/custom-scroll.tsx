@@ -39,6 +39,7 @@ export function CustomScroll({
   contentClassName,
   contentStyle,
   thumbRight = -8,
+  thumbClassName,
   innerRef,
 }: {
   children: ReactNode;
@@ -47,6 +48,7 @@ export function CustomScroll({
   /** Styl inline obszaru przewijania (np. maska fade krawędzi listy). */
   contentStyle?: CSSProperties;
   thumbRight?: number;
+  thumbClassName?: string;
   innerRef?: RefObject<HTMLDivElement | null>;
 }) {
   const internalRef = useRef<HTMLDivElement>(null);
@@ -230,7 +232,7 @@ export function CustomScroll({
       </div>
       <div
         ref={thumbRef}
-        className="scroll-thumb"
+        className={cn("scroll-thumb", thumbClassName)}
         style={{ right: thumbRight }}
         onPointerDown={handleThumbPointerDown}
         aria-hidden

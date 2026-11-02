@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
  * natywny.
  *
  * Thumb stoi tuż przy prawej krawędzi okna (thumbRight dodatni), a nie w rynnie
- * panelu jak przy liście wpisów.
+ * panelu jak przy liście wpisów. Poniżej `lg` nic tu nie przewija, a schowany
+ * thumb razem z polem trafienia wystawał 17 px poza ekran i poszerzał stronę.
  */
 export function PageScroll({
   children,
@@ -28,6 +29,7 @@ export function PageScroll({
       className="min-h-0 flex-1"
       contentClassName={cn("h-full", contentClassName)}
       thumbRight={4}
+      thumbClassName="max-lg:hidden"
     >
       {children}
     </CustomScroll>
