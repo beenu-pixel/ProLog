@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { EntryMissing } from "@/components/entry-missing";
 import { MetricValue } from "@/components/metric-value";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { METRICS } from "@/lib/metrics";
@@ -50,16 +51,7 @@ export default function EntryDetailPage() {
 
   if (!ready) return null;
 
-  if (!entry) {
-    return (
-      <div className="mx-auto w-full max-w-2xl space-y-4 text-center">
-        <p className="text-muted-foreground">Nie znaleziono wpisu.</p>
-        <Button asChild variant="outline">
-          <Link href="/entries">Wróć do listy</Link>
-        </Button>
-      </div>
-    );
-  }
+  if (!entry) return <EntryMissing />;
 
   return (
     <article

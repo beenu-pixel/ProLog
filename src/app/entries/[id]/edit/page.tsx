@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EntryForm } from "@/components/entry-form";
+import { EntryMissing } from "@/components/entry-missing";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 
@@ -17,16 +18,7 @@ export default function EditEntryPage() {
 
   if (!ready) return null;
 
-  if (!entry) {
-    return (
-      <div className="mx-auto w-full max-w-2xl space-y-4 text-center">
-        <p className="text-muted-foreground">Nie znaleziono wpisu.</p>
-        <Button asChild variant="outline">
-          <Link href="/entries">Wróć do listy</Link>
-        </Button>
-      </div>
-    );
-  }
+  if (!entry) return <EntryMissing />;
 
   return (
     <div className="w-full max-w-3xl space-y-6">

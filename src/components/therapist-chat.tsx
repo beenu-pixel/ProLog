@@ -9,6 +9,7 @@ import { type Therapist } from "@/lib/therapists";
 import { useActiveTherapist } from "@/lib/active-therapist";
 import { setOpen, useTherapistChat } from "@/lib/therapist-chat-store";
 import { TherapistSwitcher } from "@/components/therapist-switcher";
+import { LoadingText } from "@/components/ui/loading-dots";
 import { useTherapistConsent } from "@/lib/therapist-prefs";
 import type { ChatMessage } from "@/lib/therapist-store";
 
@@ -18,7 +19,7 @@ import type { ChatMessage } from "@/lib/therapist-store";
  * pozostają w `ComposerBar` poniżej — tutaj jest sama rozmowa.
  */
 export function TherapistChat({ closing = false }: { closing?: boolean }) {
-  const { messages, status } = useTherapistChat();
+  const { messages, status, historyLoading } = useTherapistChat();
   const active = useActiveTherapist();
   const [consent, setConsent] = useTherapistConsent();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -71,6 +72,9 @@ export function TherapistChat({ closing = false }: { closing?: boolean }) {
                 createdAt: "",
               }}
             />
+            {historyLoading && messages.length === 0 && (
+              <LoadingText className="py-2">Wczytuję rozmowę</LoadingText>
+            )}
             {messages.map((message) => (
               <Bubble key={message.id} message={message} />
             ))}

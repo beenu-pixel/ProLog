@@ -13,6 +13,9 @@ import type { PlanResponse } from "@/app/api/plan/route";
 let state: PlanResponse | null = null;
 let loaded = false;
 let loading = false;
+let failed = false;
+// Powrót z płatności: plan ustawia webhook, więc chwilę po przekierowaniu bywa stary.
+let activating = false;
 
 const listeners = new Set<() => void>();
 
@@ -20,8 +23,8 @@ function emit(): void {
   listeners.forEach((listener) => listener());
 }
 
-async function ensureLoaded(): Promise<void> {
-  if (loaded || loading) return;
+async function ensureLoaded(force = false): Promise<void> {
+  if (loading || (loaded && !force)) return;
   loading = true;
   try {
     const token = await getAccessToken();
@@ -29,14 +32,17 @@ async function ensureLoaded(): Promise<void> {
     const res = await fetch("/api/plan", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(`status ${res.status}`);
     state = (await res.json()) as PlanResponse;
     loaded = true;
-    emit();
+    failed = false;
   } catch {
-    // best-effort — brak stanu = brak blokady w UI
+    // best-effort — brak stanu = brak blokady w UI. Nieudane odświeżenie nie kasuje
+    // planu, który już znamy.
+    failed = !loaded;
   } finally {
     loading = false;
+    emit();
   }
 }
 
@@ -63,4 +69,35 @@ export function usePlan(): PlanResponse | null {
   }, []);
 
   return snap;
+}
+
+/** `true`, gdy planu nie udało się pobrać: `null` z `usePlan` to wtedy błąd, nie ładowanie. */
+export function usePlanFailed(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => failed,
+    () => false
+  );
+}
+
+/** Pobiera plan od nowa (ponowienie po błędzie, dopytywanie po płatności). */
+export function reloadPlan(): Promise<void> {
+  failed = false;
+  emit();
+  return ensureLoaded(true);
+}
+
+/** `true`, gdy trwa aktywacja planu po powrocie z płatności. */
+export function usePlanActivating(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => activating,
+    () => false
+  );
+}
+
+export function setPlanActivating(next: boolean): void {
+  if (activating === next) return;
+  activating = next;
+  emit();
 }

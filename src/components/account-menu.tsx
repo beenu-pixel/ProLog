@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, LogOut, UserCircle } from "lucide-react";
 
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "@/lib/auth";
 
@@ -19,14 +20,25 @@ import { useSession, signOut } from "@/lib/auth";
 export function AccountMenu() {
   const session = useSession();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const email = session?.user.email ?? null;
+
+  // Menu zostaje otwarte do końca wylogowania: inaczej nie widać, że coś się dzieje.
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
+    setOpen(false);
+  };
 
   return (
     <div
       className="relative hidden lg:block"
       onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => {
+        if (!signingOut) setOpen(false);
+      }}
     >
       <button
         type="button"
@@ -61,14 +73,14 @@ export function AccountMenu() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    void signOut();
-                  }}
+                  onClick={() => void handleSignOut()}
+                  disabled={signingOut}
+                  aria-busy={signingOut}
                   className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent"
                 >
                   <LogOut className="size-4" />
-                  Wyloguj się
+                  {signingOut ? "Wylogowuję" : "Wyloguj się"}
+                  {signingOut && <LoadingDots />}
                 </button>
               </>
             ) : (

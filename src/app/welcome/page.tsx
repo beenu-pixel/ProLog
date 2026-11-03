@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { LoadingDots } from "@/components/ui/loading-dots";
 import {
   Card,
   CardContent,
@@ -24,8 +26,12 @@ import {
   markPricingOnboarding,
   consumePricingOnboarding,
 } from "@/lib/welcome";
+import { usePageRestored } from "@/hooks/use-page-restored";
 
 type Mode = "signin" | "signup";
+
+/** Po tym czasie uprzedzamy, że serwer odpowiada wolno, żeby nikt nie uznał, że aplikacja stanęła. */
+const SLOW_CONNECTION_MS = 6000;
 
 /**
  * Ekran powitalny / logowania — część aplikacji (chrome aplikacji ukryty na tej
@@ -40,7 +46,8 @@ export default function WelcomePage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState<"email" | "google" | null>(null);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   // Dokąd wrócić po zalogowaniu. Domyślnie dziennik; ekran ustawień wchodzi tu
@@ -65,6 +72,20 @@ export default function WelcomePage() {
     }
   }, [session, router, next]);
 
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_CONNECTION_MS);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
+
+  const stopPending = useCallback(() => {
+    setPending(null);
+    setSlow(false);
+  }, []);
+
+  // Cofnięcie z ekranu Google przywraca stronę razem ze stanem ładowania.
+  usePageRestored(stopPending);
+
   const isSignup = mode === "signup";
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,13 +98,13 @@ export default function WelcomePage() {
       return;
     }
 
-    setLoading(true);
+    setPending("email");
     const result = isSignup
       ? await signUpWithEmail(email.trim(), password)
       : await signInWithEmail(email.trim(), password);
-    setLoading(false);
 
     if (result.error) {
+      stopPending();
       setError(result.error);
       return;
     }
@@ -91,23 +112,28 @@ export default function WelcomePage() {
     // z potwierdzeniem e-mail: flaga przeżyje do pierwszego logowania).
     if (isSignup) markPricingOnboarding();
     if (result.needsConfirmation) {
+      stopPending();
       setInfo("Konto utworzone. Sprawdź skrzynkę i potwierdź adres e-mail.");
       return;
     }
     // Sukces z sesją — przekierowanie obsłuży efekt reagujący na `session`.
+    // Ładowanie zostaje do przejścia, żeby przycisk nie wrócił na chwilę do
+    // „Zaloguj się", jakby nic się nie stało.
     markWelcomeSeen();
   };
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
+    setError(null);
+    setInfo(null);
+    setPending("google");
     markWelcomeSeen();
     // Gdy użytkownik jest w trybie rejestracji, po powrocie z OAuth pokażemy cennik.
     if (isSignup) markPricingOnboarding();
-    void signInWithGoogle(next);
-  };
-
-  const handleSkip = () => {
-    markWelcomeSeen();
-    router.push("/entries");
+    const result = await signInWithGoogle(next);
+    if (result.error) {
+      stopPending();
+      setError(result.error);
+    }
   };
 
   const switchMode = () => {
@@ -167,13 +193,28 @@ export default function WelcomePage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             {info && <p className="text-sm text-muted-foreground">{info}</p>}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading
-                ? "Proszę czekać…"
-                : isSignup
-                  ? "Załóż konto"
-                  : "Zaloguj się"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={pending !== null}
+              aria-busy={pending === "email"}
+            >
+              {pending === "email" ? (
+                <>
+                  {isSignup ? "Zakładanie konta" : "Logowanie"}
+                  <LoadingDots />
+                </>
+              ) : isSignup ? (
+                "Załóż konto"
+              ) : (
+                "Zaloguj się"
+              )}
             </Button>
+            {slow && (
+              <p role="status" className="text-center text-sm text-muted-foreground">
+                Serwer odpowiada dłużej niż zwykle. Jeszcze chwila…
+              </p>
+            )}
           </form>
 
           <div className="flex items-center gap-3">
@@ -187,8 +228,17 @@ export default function WelcomePage() {
             variant="outline"
             className="w-full"
             onClick={handleGoogle}
+            disabled={pending !== null}
+            aria-busy={pending === "google"}
           >
-            Zaloguj przez Google
+            {pending === "google" ? (
+              <>
+                Logowanie przez Google
+                <LoadingDots />
+              </>
+            ) : (
+              "Zaloguj przez Google"
+            )}
           </Button>
 
           <p className="text-center text-sm text-muted-foreground">
@@ -204,13 +254,13 @@ export default function WelcomePage() {
         </CardContent>
       </Card>
 
-      <button
-        type="button"
-        onClick={handleSkip}
+      <Link
+        href="/entries"
+        onClick={markWelcomeSeen}
         className="mt-6 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
         Wejdź bez konta
-      </button>
+      </Link>
     </div>
   );
 }

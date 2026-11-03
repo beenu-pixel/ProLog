@@ -14,6 +14,7 @@ import {
 } from "@/lib/therapist-prefs";
 import { Bubble, ConsentGate } from "@/components/therapist-chat";
 import { TherapistSwitcher } from "@/components/therapist-switcher";
+import { LoadingText } from "@/components/ui/loading-dots";
 
 /**
  * Pełnoekranowa rozmowa z terapeutą — treść trasy `/chat` (zakładka „Freud" na
@@ -33,7 +34,7 @@ export function ChatScreen() {
   const [enabledPref] = useTherapistEnabled();
   const [consent, setConsent] = useTherapistConsent();
   const active = useActiveTherapist();
-  const { messages, status } = useTherapistChat();
+  const { messages, status, historyLoading } = useTherapistChat();
   const endRef = useRef<HTMLDivElement>(null);
 
   // Historia rozmowy — bez otwierania desktopowego panelu (osobny stan `open`).
@@ -105,6 +106,9 @@ export function ChatScreen() {
               createdAt: "",
             }}
           />
+          {historyLoading && messages.length === 0 && (
+            <LoadingText className="py-4">Wczytuję rozmowę</LoadingText>
+          )}
           {messages.map((message) => (
             <Bubble key={message.id} message={message} />
           ))}

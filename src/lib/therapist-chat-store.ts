@@ -27,11 +27,13 @@ interface ChatState {
   messages: ChatMessage[];
   status: Status;
   open: boolean;
+  historyLoading: boolean;
 }
 
 let messages: ChatMessage[] = [];
 let status: Status = "idle";
 let open = false;
+let historyLoading = false;
 let loaded = false;
 // Aktywna persona dla TEJ rozmowy. Inicjalizowana domyślną; przy pierwszym
 // otwarciu panelu i przy `selectTherapist` synchronizowana z `active-therapist`
@@ -41,11 +43,16 @@ let therapistId = DEFAULT_THERAPIST.id;
 const listeners = new Set<() => void>();
 
 // Snapshot o stabilnej referencji — nowa powstaje tylko po realnej zmianie.
-let snapshot: ChatState = { messages, status, open };
-const SERVER_SNAPSHOT: ChatState = { messages: [], status: "idle", open: false };
+let snapshot: ChatState = { messages, status, open, historyLoading };
+const SERVER_SNAPSHOT: ChatState = {
+  messages: [],
+  status: "idle",
+  open: false,
+  historyLoading: false,
+};
 
 function emit(): void {
-  snapshot = { messages, status, open };
+  snapshot = { messages, status, open, historyLoading };
   listeners.forEach((listener) => listener());
 }
 
@@ -66,16 +73,18 @@ async function ensureLoaded(): Promise<void> {
   loaded = true;
   // Zsynchronizuj wybraną personę z localStorage przy pierwszym otwarciu.
   const persisted = getActiveTherapistId();
-  if (persisted !== therapistId) {
-    therapistId = persisted;
-    emit();
-  }
-  const stored = await loadHistory(therapistId);
+  if (persisted !== therapistId) therapistId = persisted;
+  historyLoading = true;
+  emit();
+  const requested = therapistId;
+  const stored = await loadHistory(requested);
+  // Persona zmieniona w trakcie: wynik dotyczy innego wątku, a stan ładowania
+  // należy już do nowego wywołania.
+  if (requested !== therapistId) return;
   // Tylko gdy nic nie dopisano w międzyczasie (np. szybka pierwsza wiadomość).
-  if (messages.length === 0 && stored.length > 0) {
-    messages = stored;
-    emit();
-  }
+  if (messages.length === 0 && stored.length > 0) messages = stored;
+  historyLoading = false;
+  emit();
 }
 
 /**

@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
 import { PostHogProvider } from "@/components/posthog-provider";
+import { TapFeedback } from "@/components/tap-feedback";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <TapFeedback />
             <AppShell>{children}</AppShell>
           </ThemeProvider>
         </PostHogProvider>

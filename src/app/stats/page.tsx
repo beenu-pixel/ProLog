@@ -7,8 +7,10 @@ import { StatsSummary } from "@/components/stats-summary";
 import { StatsDayPanel } from "@/components/stats-day-panel";
 import { ReportsPanel } from "@/components/reports-panel";
 import { PageScroll } from "@/components/page-scroll";
+import { LoadingText } from "@/components/ui/loading-dots";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { useEntriesSyncing } from "@/lib/auth";
 import { addDays, dayKey, formatMonthYear } from "@/lib/format";
 import {
   buildGrid,
@@ -22,6 +24,7 @@ import {
 export default function StatsPage() {
   const entries = useEntries();
   const ready = useHydrated();
+  const syncing = useEntriesSyncing();
 
   const [view, setView] = useState<StatsView>("month");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
@@ -63,6 +66,20 @@ export default function StatsPage() {
   const selectedEntries = selectedKey ? (dayMap.get(selectedKey) ?? []) : [];
 
   if (!ready) return null;
+
+  // Bez lokalnych wpisów kalendarz i „0 wpisów" byłyby fałszywe, dopóki trwa pobieranie.
+  if (syncing && entries.length === 0) {
+    return (
+      <PageScroll contentClassName="lg:pb-28">
+        <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
+          <h1 className="text-2xl font-semibold tracking-tight">Statystyki</h1>
+          <LoadingText className="min-h-[calc(100dvh-20.5rem)] lg:min-h-[60vh]">
+            Wczytuję wpisy
+          </LoadingText>
+        </div>
+      </PageScroll>
+    );
+  }
 
   return (
     <PageScroll contentClassName="lg:pb-28">
