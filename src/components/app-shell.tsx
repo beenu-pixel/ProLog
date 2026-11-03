@@ -47,8 +47,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     >
       <AppHeader />
       {!bare && <SyncNotice />}
-      {/* Mobile: dół rezerwuje miejsce na pasek zakładek + pływający kompozytor
-          — stąd pb-40.
+      {/* Mobile: dół rezerwuje dokładnie tyle, ile zajmuje dolny obszar (zmierzone
+          w BottomBar jako --bottom-nav-h, razem z safe-area i wysokością pola) + 1rem
+          oddechu, żeby koniec treści dało się przewinąć nad niego. Fallback = pb-40.
           Desktop: na zablokowanych trasach treść przewija się WEWNĄTRZ i ma
           wypełniać cały ekran (także pod pływającym kompozytorem z efektem
           glass), więc NIE rezerwujemy tu dołu (lg:pb-0) — prześwit pod pasek
@@ -57,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main
         className={cn(
           "flex w-full flex-1 flex-col",
-          bare ? "pb-0" : "pb-40",
+          bare ? "pb-0" : "pb-[calc(var(--bottom-nav-h,9rem)+1rem)]",
           locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : !bare && "lg:pb-28"
         )}
       >
