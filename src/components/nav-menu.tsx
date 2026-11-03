@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   Menu,
   X,
-  BarChart3,
   Settings,
   FileText,
   type LucideIcon,
@@ -18,13 +17,14 @@ import { useNavMenu, closeMenu, toggleMenu } from "@/lib/nav-menu-store";
 
 /**
  * Hamburger + menu nawigacji wysuwane w GÓRĘ nad dolnym paskiem. Trzyma RZADZIEJ
- * używane sekcje (Statystyki, Ustawienia, Dokumentacja) — najczęstsze cele
- * (Dziennik, Nowy wpis, Freud) są zakładkami stałego dolnego paska
- * (`BottomTabBar`); Freud to trasa `/chat`, nie pozycja menu.
+ * używane sekcje (Ustawienia, Dokumentacja) — najczęstsze cele (Dziennik,
+ * Rozmowa, Nowy wpis, Statystyki) są zakładkami stałego dolnego paska
+ * (`BottomTabBar`).
  *
  * Komponent jest samowystarczalny (własny stan, backdrop, animacja). Renderujemy
- * go na mobile: w kompozytorze (lewy przycisk) oraz na trasach „tylko nawigacja".
- * Panel pływa nad paskiem (fixed), więc nie zależy od układu rodzica.
+ * go na mobile jako ostatnią zakładkę paska, „Więcej" (`variant="tab"`), a na
+ * `/chat`, gdzie paska nie ma, jako lewy przycisk kompozytora. Panel pływa nad
+ * paskiem (fixed), więc nie zależy od układu rodzica.
  */
 interface MenuItem {
   href: string;
@@ -34,12 +34,6 @@ interface MenuItem {
 }
 
 const ITEMS: MenuItem[] = [
-  {
-    href: "/stats",
-    label: "Statystyki",
-    icon: BarChart3,
-    isActive: (p) => p.startsWith("/stats"),
-  },
   {
     href: "/settings",
     label: "Ustawienia",
@@ -57,16 +51,22 @@ const ITEMS: MenuItem[] = [
 export function NavMenu({
   className,
   menuOrigin = "left",
+  variant = "icon",
 }: {
   className?: string;
   /** Narożnik, z którego panel „wyrasta" — pod pozycją przycisku. */
   menuOrigin?: "left" | "right";
+  /** `icon` — okrągły przycisk w polu; `tab` — zakładka „Więcej", jak w `BottomTabBar`. */
+  variant?: "icon" | "tab";
 }) {
   const pathname = usePathname();
+  const isTab = variant === "tab";
 
   // Stan otwarcia żyje w storze menu (koordynacja z panelem Freuda — wykluczanie
   // i auto-powrót). Montaż/animacja wyjścia zostają lokalne, sterowane przez `open`.
   const { open } = useNavMenu();
+  // Zakładka „Więcej" świeci także wtedy, gdy jesteś w jednej z jej sekcji.
+  const highlighted = open || (isTab && ITEMS.some((item) => item.isActive(pathname)));
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   useEffect(() => {
@@ -108,15 +108,24 @@ export function NavMenu({
       <button
         type="button"
         onClick={() => toggleMenu()}
-        aria-label="Menu nawigacji"
+        // Zakładka ma widoczny podpis „Więcej" — to on jest jej nazwą dla czytnika.
+        aria-label={isTab ? undefined : "Menu nawigacji"}
         aria-expanded={open}
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-          open ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          "flex shrink-0 items-center justify-center transition-colors",
+          isTab
+            ? "min-h-14 w-full flex-col gap-0.5 pt-1.5 pb-1 text-xs leading-none"
+            : "size-9 rounded-full",
+          highlighted ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          isTab && highlighted && "font-medium",
           className
         )}
       >
-        <Menu className="size-5" />
+        <Menu
+          className="size-5"
+          strokeWidth={isTab ? (highlighted ? 2.4 : 1.8) : undefined}
+        />
+        {isTab && "Więcej"}
       </button>
 
       {mounted &&
@@ -157,7 +166,7 @@ export function NavMenu({
               )}
             >
               <div className="flex items-center justify-between border-b px-4 py-2.5">
-                <p className="text-sm font-semibold">Menu</p>
+                <p className="text-sm font-semibold">Więcej</p>
                 <button
                   type="button"
                   onClick={() => closeMenu()}

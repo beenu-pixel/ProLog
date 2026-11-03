@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, NotebookText, Plus } from "lucide-react";
+import { BarChart3, Bot, NotebookText, Plus } from "lucide-react";
 
+import { NavMenu } from "@/components/nav-menu";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
 import { useTherapistEnabled } from "@/lib/therapist-prefs";
@@ -12,16 +13,17 @@ import { getComposerText, clearComposerText } from "@/lib/composer-text";
 import { playSound } from "@/lib/sound";
 
 /**
- * Stały dolny pasek zakładek (tylko mobile) — trzy najczęstsze cele jednym
- * tapnięciem: Dziennik, Nowy wpis, Rozmowa (czat z aktywną personą terapeuty —
- * etykieta celowo bez imienia, bo person jest kilka). Dokowany do samej krawędzi ekranu
- * (safe-area), kompozytor pływa NAD nim. Rzadsze sekcje (Statystyki,
- * Ustawienia, Dokumentacja) zostają w menu pod hamburgerem (`NavMenu`).
+ * Stały dolny pasek zakładek (tylko mobile) — najczęstsze cele jednym tapnięciem:
+ * Dziennik, Rozmowa (czat z aktywną personą terapeuty — etykieta celowo bez
+ * imienia, bo person jest kilka), Nowy wpis, Statystyki oraz „Więcej" (`NavMenu`:
+ * Ustawienia, Dokumentacja). Dokowany do samej krawędzi ekranu (safe-area),
+ * kompozytor pływa NAD nim.
  *
  * „Nowy wpis" to akcja, nie sekcja — stąd wyróżnienie ikony wypełnionym
- * kółkiem (wzorzec „compose"). Tapnięcie zabiera ewentualny tekst z kompozytora
- * jako wersję roboczą (nie gubimy pracy użytkownika). Zakładka Freud jest
- * widoczna tylko dla zalogowanych z włączoną rozmową (jak reszta UI AI).
+ * kółkiem (wzorzec „compose") i miejsce na środku pięciu zakładek. Tapnięcie
+ * zabiera ewentualny tekst z kompozytora jako wersję roboczą (nie gubimy pracy
+ * użytkownika). Zakładka Freud jest widoczna tylko dla zalogowanych z włączoną
+ * rozmową (jak reszta UI AI) — bez niej zakładek są cztery.
  */
 export function BottomTabBar() {
   const pathname = usePathname();
@@ -31,6 +33,7 @@ export function BottomTabBar() {
 
   const entriesActive = pathname === "/" || pathname.startsWith("/entries");
   const chatActive = pathname.startsWith("/chat");
+  const statsActive = pathname.startsWith("/stats");
 
   const itemClass = (active: boolean) =>
     cn(
@@ -66,6 +69,17 @@ export function BottomTabBar() {
           Dziennik
         </Link>
 
+        {showFreud && (
+          <Link
+            href="/chat"
+            aria-current={chatActive ? "page" : undefined}
+            className={itemClass(chatActive)}
+          >
+            <Bot className="size-5" strokeWidth={chatActive ? 2.4 : 1.8} />
+            Rozmowa
+          </Link>
+        )}
+
         <Link
           href="/new"
           onClick={startNewEntry}
@@ -77,16 +91,16 @@ export function BottomTabBar() {
           Nowy wpis
         </Link>
 
-        {showFreud && (
-          <Link
-            href="/chat"
-            aria-current={chatActive ? "page" : undefined}
-            className={itemClass(chatActive)}
-          >
-            <Bot className="size-5" strokeWidth={chatActive ? 2.4 : 1.8} />
-            Rozmowa
-          </Link>
-        )}
+        <Link
+          href="/stats"
+          aria-current={statsActive ? "page" : undefined}
+          className={itemClass(statsActive)}
+        >
+          <BarChart3 className="size-5" strokeWidth={statsActive ? 2.4 : 1.8} />
+          Statystyki
+        </Link>
+
+        <NavMenu variant="tab" menuOrigin="right" className="flex-1" />
       </div>
     </nav>
   );

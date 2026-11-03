@@ -164,11 +164,12 @@ export default function SettingsPage() {
           Konto
         </h2>
         <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium">
               {session ? "Zalogowano" : "Zarządzanie kontem"}
             </p>
-            <p className="text-sm text-muted-foreground">
+            {/* Długi e-mail łamiemy — inaczej wypycha „Wyloguj" poza kartę. */}
+            <p className="break-words text-sm text-muted-foreground">
               {session
                 ? session.user.email ??
                   "Wpisy synchronizowane z chmurą."

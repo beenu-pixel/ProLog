@@ -50,8 +50,8 @@ import { TherapistChat } from "@/components/therapist-chat";
  *
  * Bez własnego pozycjonowania — układ (fixed, odstępy) ustala `BottomBar`.
  *
- * Lewy przycisk pola: na mobile hamburger (`NavMenu`) z rzadszą nawigacją; na
- * desktopie ikona Bota — jawny przełącznik trybu (otwiera/zamyka panel rozmowy),
+ * Lewy przycisk pola: na mobile, tylko na `/chat` (tam nie ma paska zakładek z
+ * „Więcej"), hamburger (`NavMenu`) z rzadszą nawigacją; na desktopie ikona Bota — jawny przełącznik trybu (otwiera/zamyka panel rozmowy),
  * ukryta na `/chat`, gdzie trybem rządzi trasa.
  */
 export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
@@ -291,13 +291,15 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
           }}
           className={cn(
             "flex min-h-16 w-full items-center gap-1.5 px-3 py-2.5",
+            // Bez hamburgera tekst pola nie może kleić się do zaokrąglonej krawędzi.
+            mode !== "chat" && "max-lg:pl-5",
             // Na desktopie pastylką jest ten <form> — tu ląduje wskaźnik fokusu.
             "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70",
             "lg:transition-[border-color,box-shadow] lg:focus-within:border-ring lg:focus-within:ring-[3px] lg:focus-within:ring-ring/50"
           )}
         >
-        {/* Mobile: hamburger → menu rzadszej nawigacji. */}
-        <NavMenu className="lg:hidden" menuOrigin="left" />
+        {/* Mobile, tylko /chat: hamburger → menu rzadszej nawigacji. */}
+        {mode === "chat" && <NavMenu className="lg:hidden" menuOrigin="left" />}
 
         <textarea
           ref={textareaRef}
