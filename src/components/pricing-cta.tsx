@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useCallback, useState } from "react";
 
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { cn } from "@/lib/utils";
 import { getAccessToken } from "@/lib/auth";
+import { usePageRestored } from "@/hooks/use-page-restored";
 import type { BillingPeriod, PaidTier } from "@/lib/stripe-prices";
 
 /**
@@ -28,6 +29,9 @@ export function PricingCta({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Cofnięcie ze strony płatności przywraca przycisk razem ze stanem ładowania.
+  usePageRestored(useCallback(() => setLoading(false), []));
+
   const start = async () => {
     setError(null);
     setLoading(true);
@@ -48,12 +52,13 @@ export function PricingCta({
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
         setError(data.error ?? "Nie udało się rozpocząć płatności.");
+        setLoading(false);
         return;
       }
+      // Ładowanie zostaje do przejścia na stronę płatności.
       window.location.assign(data.url);
     } catch {
       setError("Coś poszło nie tak. Spróbuj ponownie.");
-    } finally {
       setLoading(false);
     }
   };
@@ -71,8 +76,8 @@ export function PricingCta({
             : "border hover:bg-secondary"
         )}
       >
-        {loading && <Loader2 className="size-4 animate-spin" />}
         {label}
+        {loading && <LoadingDots />}
       </button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Bot, Loader2, Mic, NotebookPen, RotateCw, SendHorizontal } from "lucide-react";
+import { Bot, Mic, NotebookPen, RotateCw, SendHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { NavMenu } from "@/components/nav-menu";
 import { closeMenu } from "@/lib/nav-menu-store";
 import { useTranscription } from "@/hooks/use-transcription";
@@ -316,14 +317,23 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
             }
           }}
           placeholder={
-            chatMode ? `Napisz do ${therapist.name}…` : "Napisz notatkę…"
+            listening
+              ? "Nagrywam…"
+              : transcribing
+                ? "Przepisuję…"
+                : chatMode
+                  ? `Napisz do ${therapist.name}…`
+                  : "Napisz notatkę…"
           }
           aria-label={
             chatMode
               ? `Wiadomość do ${therapist.name}`
               : "Notatka do nowego wpisu"
           }
-          className="hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground"
+          className={cn(
+            "hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground",
+            listening && "placeholder:text-destructive"
+          )}
         />
 
         {hasText ? (
@@ -392,11 +402,12 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
               listening
                 ? "bg-destructive text-white"
                 : "bg-primary text-primary-foreground hover:scale-105 active:scale-95",
-              micDisabled && "cursor-not-allowed opacity-50 hover:scale-100"
+              micDisabled && "cursor-not-allowed hover:scale-100",
+              micDisabled && !transcribing && "opacity-50"
             )}
           >
             {transcribing ? (
-              <Loader2 className="size-5 animate-spin" />
+              <LoadingDots />
             ) : (
               <Mic className={cn("size-5", listening && "animate-pulse")} />
             )}

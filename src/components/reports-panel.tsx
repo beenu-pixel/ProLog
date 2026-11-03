@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Lock, Sparkles, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Lock, Sparkles } from "lucide-react";
 
+import { LoadingDots, LoadingText } from "@/components/ui/loading-dots";
 import { cn } from "@/lib/utils";
-import { getAccessToken } from "@/lib/auth";
-import { usePlan } from "@/hooks/use-plan";
+import { getAccessToken, useSession } from "@/lib/auth";
+import { usePlan, usePlanFailed } from "@/hooks/use-plan";
 
 type Period = "week" | "month";
+
+const SLOW_REPORT_MS = 6_000;
 
 interface ReportData {
   period: Period;
@@ -24,17 +27,33 @@ const PERIOD_LABEL: Record<Period, string> = {
  * Panel raportów AI (funkcja Pro/Max) na ekranie Statystyk. Tygodniowy jest od
  * planu Pro, miesięczny tylko w Max. Dla planu bez dostępu przycisk pokazuje kłódkę
  * i prowadzi do cennika. Twarde egzekwowanie jest serwerowe (/api/reports) — tu
- * tylko UX: dostęp wyliczamy z `usePlan` (gość/nieznany plan → kłódki, bez blokady żądania).
+ * tylko UX: dostęp wyliczamy z `usePlan`. Gość widzi kłódki. Zalogowany bez znanego
+ * planu ich nie widzi: płacącego nie wolno odesłać do cennika, gdy plan się wczytuje,
+ * a gdy plan jest niedostępny, o dostępie rozstrzyga serwer.
  */
 export function ReportsPanel() {
+  const session = useSession();
   const plan = usePlan();
+  const planFailed = usePlanFailed();
   const tier = plan?.tier ?? null;
-  const canWeek = tier === "pro" || tier === "max";
-  const canMonth = tier === "max";
+  const planUnknown = Boolean(session) && plan === null;
+  const planPending = planUnknown && !planFailed;
+  const canWeek = planUnknown || tier === "pro" || tier === "max";
+  const canMonth = planUnknown || tier === "max";
 
   const [loading, setLoading] = useState<Period | null>(null);
+  const [slow, setSlow] = useState(false);
   const [report, setReport] = useState<ReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setSlow(true), SLOW_REPORT_MS);
+    return () => {
+      clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [loading]);
 
   const generate = async (period: Period) => {
     const allowed = period === "week" ? canWeek : canMonth;
@@ -77,21 +96,29 @@ export function ReportsPanel() {
       key={period}
       type="button"
       onClick={() => generate(period)}
-      disabled={loading !== null}
+      disabled={loading !== null || planPending}
+      aria-busy={loading === period}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-        "hover:bg-secondary disabled:opacity-60"
+        "hover:bg-secondary disabled:opacity-60 aria-busy:opacity-100"
       )}
       title={locked ? "Dostępne w wyższym planie — kliknij, by zobaczyć cennik" : undefined}
     >
       {loading === period ? (
-        <Loader2 className="size-3.5 animate-spin" />
-      ) : locked ? (
-        <Lock className="size-3.5 text-muted-foreground" />
+        <>
+          Generuję raport
+          <LoadingDots />
+        </>
       ) : (
-        <Sparkles className="size-3.5 text-muted-foreground" />
+        <>
+          {locked ? (
+            <Lock className="size-3.5 text-muted-foreground" />
+          ) : (
+            <Sparkles className="size-3.5 text-muted-foreground" />
+          )}
+          Raport {PERIOD_LABEL[period]}
+        </>
       )}
-      Raport {PERIOD_LABEL[period]}
     </button>
   );
 
@@ -110,6 +137,16 @@ export function ReportsPanel() {
         {renderButton("week", !canWeek)}
         {renderButton("month", !canMonth)}
       </div>
+
+      {planPending && (
+        <LoadingText className="justify-start">Sprawdzam plan</LoadingText>
+      )}
+
+      {slow && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Czytam Twoje wpisy, to może chwilę potrwać.
+        </p>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

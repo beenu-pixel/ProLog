@@ -89,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
       // tier w pierwszej kolejności z metadata (najpewniejsze źródło).
       metadata: { user_id: auth.userId, tier: plan },
       subscription_data: { metadata: { user_id: auth.userId, tier: plan } },
-      success_url: `${appUrl}/settings?upgraded=1`,
+      success_url: `${appUrl}/settings?upgraded=${plan}`,
       cancel_url: `${appUrl}/pricing`,
     });
 

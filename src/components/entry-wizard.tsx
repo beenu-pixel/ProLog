@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { ScalePicker } from "@/components/scale-picker";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import {
@@ -44,6 +45,8 @@ export function EntryWizard() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [photos, setPhotos] = useState<EntryPhoto[]>([]);
+  const [uploads, setUploads] = useState(0);
+  const uploading = uploads > 0;
   const [error, setError] = useState<string | null>(null);
 
   const loggedIn = Boolean(useSession());
@@ -113,6 +116,8 @@ export function EntryWizard() {
 
   const save = () => {
     clearTimer();
+    // Zapis w trakcie wgrywania zgubiłby zdjęcie: wpis powstałby bez niego.
+    if (uploading) return;
     // Wpis musi nieść tekst (tytuł/treść) — albo zdjęcie z nastrojem.
     const check = canSaveEntry({
       title,
@@ -223,6 +228,7 @@ export function EntryWizard() {
                   onUploaded={(photo) =>
                     uploadedPaths.current.push(photo.path)
                   }
+                  onUploadDelta={(delta) => setUploads((n) => n + delta)}
                 />
               )}
             </div>
@@ -253,7 +259,10 @@ export function EntryWizard() {
               <Button variant="ghost" onClick={goBack}>
                 Wstecz
               </Button>
-              <Button onClick={save}>Zapisz</Button>
+              <Button onClick={save} disabled={uploading} aria-busy={uploading}>
+                {uploading ? "Wgrywam zdjęcie" : "Zapisz"}
+                {uploading && <LoadingDots />}
+              </Button>
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { supabase, isConfigured } from "@/lib/supabase";
 import { isSeedEntry } from "@/lib/seed";
+import { setPushFailed } from "@/lib/sync-status";
 import type { Entry } from "@/lib/types";
 
 /**
@@ -27,13 +28,15 @@ export function pushEntry(entry: Entry): void {
     try {
       const headers = await authHeaders();
       if (!headers) return;
-      await fetch("/api/cms/entries", {
+      const res = await fetch("/api/cms/entries", {
         method: "POST",
         headers,
         body: JSON.stringify({ entries: [entry] }),
       });
+      if (!res.ok) setPushFailed(true);
     } catch {
       // Mirror to najlepszy wysiłek — błąd sieci nie może psuć zapisu lokalnego.
+      setPushFailed(true);
     }
   })();
 }
@@ -58,42 +61,45 @@ export async function deleteRemote(id: string): Promise<boolean> {
 }
 
 /**
- * Pobiera wszystkie wpisy zalogowanego użytkownika z serwera. Best-effort: przy
- * braku sesji/konfiguracji lub błędzie zwraca pustą listę (nigdy nie rzuca).
- * Używane przy logowaniu/odświeżeniu, by localStorage dogonił stan z chmury
- * (również wpisy dodane w innej przeglądarce albo przez REST/MCP).
+ * Pobiera wszystkie wpisy zalogowanego użytkownika z serwera. Nigdy nie rzuca: bez
+ * sesji/konfiguracji zwraca pustą listę, a przy błędzie `null`, by wołający mógł
+ * odróżnić „nie ma wpisów" od „nie wiadomo". Używane przy logowaniu/odświeżeniu, by
+ * localStorage dogonił stan z chmury (również wpisy z innej przeglądarki albo REST/MCP).
  */
-export async function pullAll(): Promise<Entry[]> {
+export async function pullAll(): Promise<Entry[] | null> {
   try {
     const headers = await authHeaders();
     if (!headers) return [];
     const res = await fetch("/api/cms/entries", { method: "GET", headers });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const json = (await res.json()) as { entries?: Entry[] };
     return json.entries ?? [];
   } catch {
-    return [];
+    return null;
   }
 }
 
 /**
  * Bulk-upsert wszystkich wpisów — wołane po zalogowaniu, by serwer dogonił stan
  * lokalny. Pomija wpisy-seedy (wypełniacz demonstracyjny) — nie należą do konta.
+ * Udana wysyłka całości zdejmuje też wcześniejszy błąd pojedynczego wpisu.
  */
-export function pushAll(entries: Entry[]): void {
+export async function pushAll(entries: Entry[]): Promise<void> {
   const real = entries.filter((entry) => !isSeedEntry(entry));
-  if (real.length === 0) return;
-  void (async () => {
-    try {
-      const headers = await authHeaders();
-      if (!headers) return;
-      await fetch("/api/cms/entries", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ entries: real }),
-      });
-    } catch {
-      // jw.
-    }
-  })();
+  if (real.length === 0) {
+    setPushFailed(false);
+    return;
+  }
+  try {
+    const headers = await authHeaders();
+    if (!headers) return;
+    const res = await fetch("/api/cms/entries", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ entries: real }),
+    });
+    setPushFailed(!res.ok);
+  } catch {
+    setPushFailed(true);
+  }
 }

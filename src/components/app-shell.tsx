@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
 import { BottomBar } from "@/components/bottom-bar";
+import { SyncNotice } from "@/components/sync-notice";
 import { WindowScroll } from "@/components/window-scroll";
 import { useAnimationsEnabled } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
     >
       <AppHeader />
+      {!bare && <SyncNotice />}
       {/* Mobile: dół rezerwuje miejsce na pasek zakładek + pływający kompozytor
           — stąd pb-40.
           Desktop: na zablokowanych trasach treść przewija się WEWNĄTRZ i ma

@@ -5,6 +5,8 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
@@ -38,9 +40,11 @@ export function PhotoAddButton({ onClick }: { onClick: () => void }) {
 
 interface PhotoFieldProps {
   photos: EntryPhoto[];
-  onChange: (photos: EntryPhoto[]) => void;
+  onChange: Dispatch<SetStateAction<EntryPhoto[]>>;
   /** Zgłasza wgrane w tej sesji zdjęcie (rodzic sprząta porzucone uploady). */
   onUploaded?: (photo: EntryPhoto) => void;
+  /** Początek (+1) i koniec (-1) partii wgrywania: rodzic wstrzymuje wtedy zapis. */
+  onUploadDelta?: (delta: 1 | -1) => void;
 }
 
 /** Lokalny stan wgrywanego pliku — miniatura z `URL.createObjectURL`. */
@@ -56,7 +60,7 @@ interface Pending {
  * rodzic przy zapisie/porzuceniu, by edycja dało się cofnąć (Anuluj).
  */
 export const PhotoField = forwardRef<PhotoFieldHandle, PhotoFieldProps>(
-  function PhotoField({ photos, onChange, onUploaded }, ref) {
+  function PhotoField({ photos, onChange, onUploaded, onUploadDelta }, ref) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [pending, setPending] = useState<Pending[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -73,17 +77,16 @@ export const PhotoField = forwardRef<PhotoFieldHandle, PhotoFieldProps>(
         f.type.startsWith("image/")
       );
 
-      // Lokalny akumulator: kolejne pliki z jednej partii dokładamy do najświeższej
-      // listy bez czekania na re-render rodzica między uploadami.
-      let working = photos;
+      onUploadDelta?.(1);
       for (const file of files) {
         const tempId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const previewUrl = URL.createObjectURL(file);
         setPending((prev) => [...prev, { tempId, previewUrl }]);
         try {
           const photo = await uploadPhoto(file);
-          working = [...working, photo];
-          onChange(working);
+          // Aktualizacja funkcyjna: druga partia albo usunięcie w trakcie wgrywania
+          // nie nadpiszą listy starszą kopią.
+          onChange((prev) => [...prev, photo]);
           onUploaded?.(photo);
         } catch (e) {
           setError(
@@ -94,10 +97,11 @@ export const PhotoField = forwardRef<PhotoFieldHandle, PhotoFieldProps>(
           setPending((prev) => prev.filter((p) => p.tempId !== tempId));
         }
       }
+      onUploadDelta?.(-1);
     };
 
     const remove = (id: string) => {
-      onChange(photos.filter((p) => p.id !== id));
+      onChange((prev) => prev.filter((p) => p.id !== id));
     };
 
     const hasAny = photos.length > 0 || pending.length > 0;

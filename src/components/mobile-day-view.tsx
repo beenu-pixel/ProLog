@@ -6,8 +6,10 @@ import Link from "next/link";
 import { DayStrip } from "@/components/day-strip";
 import { MetricValue } from "@/components/metric-value";
 import { PhotoGallery } from "@/components/photo-gallery";
+import { LoadingText } from "@/components/ui/loading-dots";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
+import { useEntriesSyncing } from "@/lib/auth";
 import { setOpenDay } from "@/lib/active-context";
 import { sanitizeEntryHtml } from "@/lib/sanitize";
 import { METRICS } from "@/lib/metrics";
@@ -26,6 +28,7 @@ const DAYS_BACK = 30;
 export function MobileDayView() {
   const entries = useEntries();
   const ready = useHydrated();
+  const syncing = useEntriesSyncing();
 
   // Stabilna „kotwica dziś" liczona raz — pasek i zaznaczenie nie skaczą między
   // renderami.
@@ -74,7 +77,7 @@ export function MobileDayView() {
             ))}
           </div>
         ) : (
-          <EmptyDay />
+          <EmptyDay syncing={syncing} />
         )}
       </div>
     </div>
@@ -125,12 +128,16 @@ function DayEntry({ entry }: { entry: Entry }) {
 }
 
 /** Pusty dzień: zwięzła informacja. Rozmowa/dodawanie jest w dolnym pasku. */
-function EmptyDay() {
+function EmptyDay({ syncing }: { syncing: boolean }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
-      <p className="max-w-[16rem] text-sm text-muted-foreground">
-        Brak wpisu na ten dzień.
-      </p>
+      {syncing ? (
+        <LoadingText>Wczytuję wpisy</LoadingText>
+      ) : (
+        <p className="max-w-[16rem] text-sm text-muted-foreground">
+          Brak wpisu na ten dzień.
+        </p>
+      )}
     </div>
   );
 }

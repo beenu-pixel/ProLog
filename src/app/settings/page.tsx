@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { useHydrated } from "@/hooks/use-hydrated";
-import { useSoundEnabled } from "@/lib/settings";
+import { canVibrate } from "@/lib/haptics";
+import { useHapticsEnabled, useSoundEnabled } from "@/lib/settings";
 import { useAnimationsEnabled } from "@/lib/motion";
 import {
   useAutoSend,
@@ -17,7 +20,7 @@ import { useActiveTherapist } from "@/lib/active-therapist";
 import { useSession, signOut } from "@/lib/auth";
 import { ApiTokenManager } from "@/components/api-token-manager";
 import { UsageDashboard } from "@/components/usage-dashboard";
-import { PlanPanel } from "@/components/plan-panel";
+import { PlanPanel, UpgradeNotice } from "@/components/plan-panel";
 import { PageScroll } from "@/components/page-scroll";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,9 @@ export default function SettingsPage() {
   const hydrated = useHydrated();
   const [soundEnabled, setSoundEnabled] = useSoundEnabled();
   const soundOn = hydrated && soundEnabled;
+  const [hapticsEnabled, setHapticsEnabled] = useHapticsEnabled();
+  const hapticsAvailable = hydrated && canVibrate();
+  const [signingOut, setSigningOut] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useAnimationsEnabled();
   const animationsOn = hydrated ? animationsEnabled : true;
   const session = useSession();
@@ -80,10 +86,18 @@ export default function SettingsPage() {
     clearHistory();
   };
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
+  };
+
   return (
     <PageScroll>
       <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
       <h1 className="text-2xl font-semibold tracking-tight">Ustawienia</h1>
+
+      {session && <UpgradeNotice />}
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -103,6 +117,27 @@ export default function SettingsPage() {
           />
         </div>
       </section>
+
+      {hapticsAvailable && (
+        <section className="space-y-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Wibracje
+          </h2>
+          <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+            <div>
+              <p className="text-sm font-medium">Wibracja przy stuknięciu</p>
+              <p className="text-sm text-muted-foreground">
+                Krótkie potwierdzenie, że stuknięcie dotarło.
+              </p>
+            </div>
+            <Toggle
+              checked={hapticsEnabled}
+              onChange={setHapticsEnabled}
+              label="Wibracja przy stuknięciu"
+            />
+          </div>
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -141,8 +176,15 @@ export default function SettingsPage() {
             </p>
           </div>
           {session ? (
-            <Button variant="outline" size="sm" onClick={() => signOut()}>
-              Wyloguj
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              aria-busy={signingOut}
+            >
+              {signingOut ? "Wylogowuję" : "Wyloguj"}
+              {signingOut && <LoadingDots />}
             </Button>
           ) : (
             <Button asChild variant="outline" size="sm">

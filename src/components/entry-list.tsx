@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Loader2, Search, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { LoadingText } from "@/components/ui/loading-dots";
 import { CustomScroll } from "@/components/custom-scroll";
 import { EntryListItem } from "@/components/entry-list-item";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useAiLimit, noteFromHeaders } from "@/hooks/use-ai-limits";
-import { useSession, getAccessToken } from "@/lib/auth";
+import { useEntriesSyncing, useSession, getAccessToken } from "@/lib/auth";
 import { searchEntries } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { Entry } from "@/lib/types";
@@ -41,6 +42,7 @@ export function EntryList() {
   const pathname = usePathname();
   const session = useSession();
   const loggedIn = Boolean(session);
+  const syncing = useEntriesSyncing();
   const [query, setQuery] = useState("");
   const [smart, setSmart] = useState(false);
   const searchLimit = useAiLimit("search");
@@ -179,10 +181,9 @@ export function EntryList() {
         }}
       >
         {!ready ? null : smartActive ? (
-          searching && hits === null ? (
-            <p className="flex items-center justify-center gap-2 px-3 py-12 text-center text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Szukam…
-            </p>
+          // Puste poprzednie wyniki nie mogą mówić „Brak dopasowań" o nowym zapytaniu.
+          searching && !hits?.length ? (
+            <LoadingText className="px-3 py-12">Szukam</LoadingText>
           ) : searchError ? (
             <p className="px-3 py-12 text-center text-sm text-muted-foreground">
               Wyszukiwanie chwilowo niedostępne. Spróbuj ponownie.
@@ -192,21 +193,35 @@ export function EntryList() {
               Brak dopasowań do „{trimmed}”.
             </p>
           ) : (
-            <ul className="space-y-1">
-              {hits?.map((hit) => (
-                <EntryListItem
-                  key={hit.entry.id}
-                  entry={hit.entry}
-                  active={hit.entry.id === activeId}
-                  badge={hit.source === "recent" ? "ostatnie 7 dni" : undefined}
-                />
-              ))}
-            </ul>
+            <>
+              {searching && (
+                <LoadingText className="pb-3">Szukam</LoadingText>
+              )}
+              <ul
+                className={cn(
+                  "space-y-1 transition-opacity",
+                  searching && "opacity-50"
+                )}
+              >
+                {hits?.map((hit) => (
+                  <EntryListItem
+                    key={hit.entry.id}
+                    entry={hit.entry}
+                    active={hit.entry.id === activeId}
+                    badge={hit.source === "recent" ? "ostatnie 7 dni" : undefined}
+                  />
+                ))}
+              </ul>
+            </>
           )
         ) : entries.length === 0 ? (
-          <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-            Nie masz jeszcze żadnych wpisów.
-          </p>
+          syncing ? (
+            <LoadingText className="px-3 py-12">Wczytuję wpisy</LoadingText>
+          ) : (
+            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
+              Nie masz jeszcze żadnych wpisów.
+            </p>
+          )
         ) : filtered.length === 0 ? (
           <p className="px-3 py-12 text-center text-sm text-muted-foreground">
             Brak wpisów pasujących do „{trimmed}”.

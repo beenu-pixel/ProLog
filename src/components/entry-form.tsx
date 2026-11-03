@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { MoodSlider } from "@/components/mood-slider";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import {
@@ -33,6 +34,8 @@ export function EntryForm({ entry }: EntryFormProps) {
   const [title, setTitle] = useState(entry?.title ?? "");
   const [content, setContent] = useState(entry?.content ?? "");
   const [photos, setPhotos] = useState<EntryPhoto[]>(entry?.photos ?? []);
+  const [uploads, setUploads] = useState(0);
+  const uploading = uploads > 0;
 
   const loggedIn = Boolean(useSession());
   const photoFieldRef = useRef<PhotoFieldHandle>(null);
@@ -70,6 +73,8 @@ export function EntryForm({ entry }: EntryFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Zapis w trakcie wgrywania zgubiłby zdjęcie: wpis powstałby bez niego.
+    if (uploading) return;
     const check = canSaveEntry({
       title,
       content,
@@ -142,6 +147,7 @@ export function EntryForm({ entry }: EntryFormProps) {
             photos={photos}
             onChange={setPhotos}
             onUploaded={(photo) => uploadedPaths.current.push(photo.path)}
+            onUploadDelta={(delta) => setUploads((n) => n + delta)}
           />
         )}
       </div>
@@ -174,7 +180,10 @@ export function EntryForm({ entry }: EntryFormProps) {
         <Button type="button" variant="ghost" onClick={() => router.back()}>
           Anuluj
         </Button>
-        <Button type="submit">Zapisz</Button>
+        <Button type="submit" disabled={uploading} aria-busy={uploading}>
+          {uploading ? "Wgrywam zdjęcie" : "Zapisz"}
+          {uploading && <LoadingDots />}
+        </Button>
       </div>
     </form>
   );
