@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useProgressRouter } from "@/lib/nav-progress";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ import { dayKey, formatDate } from "@/lib/format";
 
 export default function EntryDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const router = useProgressRouter();
   const entries = useEntries();
   const ready = useHydrated();
   const entry = entries.find((e) => e.id === params.id);

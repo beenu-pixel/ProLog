@@ -10,8 +10,9 @@
 
 const KEY = "prolog.entriesSidebarWidth";
 
-/** Domyślna szerokość (px) — stan „jak teraz". Dwuklik w uchwyt do niej wraca. */
-export const SIDEBAR_DEFAULT = 340;
+/** Domyślna szerokość (px). Dwuklik w uchwyt do niej wraca. Obok stoi pasek
+ *  boczny aplikacji (224 px), więc przy 1024 px czytnik zachowuje ~460 px. */
+export const SIDEBAR_DEFAULT = 320;
 export const SIDEBAR_MIN = 260;
 export const SIDEBAR_MAX = 560;
 

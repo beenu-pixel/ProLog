@@ -66,8 +66,10 @@ export function ThemeToggle() {
       aria-checked={isDark}
       aria-label="Przełącz tryb jasny/ciemny"
       onClick={toggleTheme}
+      // Cel dotyku 44 px: tor 28 px, a niewidoczne pole wokół (`before`) dobija
+      // wysokość do 44 px bez rozpychania wiersza, w którym stoi przełącznik.
       className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border bg-secondary transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-input bg-secondary transition-colors before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']"
       )}
     >
       {/* Kciuk jest osobną grupą View Transitions. WAŻNE: element z
@@ -80,8 +82,8 @@ export function ThemeToggle() {
       <span
         style={{ viewTransitionName: "theme-thumb" }}
         className={cn(
-          "theme-thumb absolute flex size-5 items-center justify-center rounded-full bg-background text-foreground shadow-md",
-          "transition-transform duration-[350ms] ease-[ease]",
+          "theme-thumb absolute flex size-5 items-center justify-center rounded-full bg-background text-foreground shadow-raised",
+          "transition-transform duration-(--duration-slow) ease-out",
           isDark ? "translate-x-6" : "translate-x-1"
         )}
       >
@@ -116,7 +118,7 @@ function SunMoon({ isDark }: { isDark: boolean }) {
           cy="12"
           r="9"
           fill="black"
-          className="theme-thumb-shape transition-transform duration-[350ms] ease-[ease]"
+          className="theme-thumb-shape transition-transform duration-(--duration-slow) ease-out"
           style={{ transform: isDark ? "translate(7px, -6px)" : "translate(20px, -16px)" }}
         />
       </mask>
@@ -128,7 +130,7 @@ function SunMoon({ isDark }: { isDark: boolean }) {
         r="9"
         fill="currentColor"
         mask={`url(#${maskId})`}
-        className="theme-thumb-shape origin-center transition-transform duration-[350ms] ease-[ease]"
+        className="theme-thumb-shape origin-center transition-transform duration-(--duration-slow) ease-out"
         style={{ transform: `scale(${isDark ? 1 : 0.62})` }}
       />
 
@@ -137,7 +139,7 @@ function SunMoon({ isDark }: { isDark: boolean }) {
         stroke="currentColor"
         strokeWidth="2.2"
         strokeLinecap="round"
-        className="theme-thumb-shape origin-center transition-all duration-[350ms] ease-[ease]"
+        className="theme-thumb-shape origin-center transition-[opacity,transform] duration-(--duration-slow) ease-out"
         style={{
           opacity: isDark ? 0 : 1,
           transform: `scale(${isDark ? 0.35 : 1}) rotate(${isDark ? -45 : 0}deg)`,

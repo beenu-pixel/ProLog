@@ -14,7 +14,7 @@ export function EntryMissing() {
   const syncing = useEntriesSyncing();
 
   return (
-    <div className="flex min-h-[calc(100dvh-16.5rem)] flex-col items-center justify-center gap-4 text-center lg:min-h-[60vh]">
+    <div className="flex min-h-[calc(100dvh-13rem)] flex-col items-center justify-center gap-4 text-center lg:min-h-[60vh]">
       {syncing ? (
         <LoadingText>Wczytuję wpis</LoadingText>
       ) : (

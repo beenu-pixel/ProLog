@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
-import { Bot, Mic, NotebookPen, RotateCw, SendHorizontal } from "lucide-react";
+import { ArrowUp, Mic, RotateCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { NavMenu } from "@/components/nav-menu";
 import { closeMenu } from "@/lib/nav-menu-store";
+import { useProgressRouter } from "@/lib/nav-progress";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useAiLimit } from "@/hooks/use-ai-limits";
 import { useEntries } from "@/hooks/use-entries";
@@ -23,105 +23,75 @@ import {
   useComposerText,
 } from "@/lib/composer-text";
 import { playSound } from "@/lib/sound";
-import {
-  sendMessage,
-  setOpen,
-  useTherapistChat,
-} from "@/lib/therapist-chat-store";
+import { sendMessage, useTherapistChat } from "@/lib/therapist-chat-store";
 import {
   hasTherapistConsent,
   isAutoSend,
   useTherapistEnabled,
 } from "@/lib/therapist-prefs";
-import { TherapistChat } from "@/components/therapist-chat";
 
 /**
- * „Pigułka" dolnego pola kontekstowego — wspólna dla mobile i desktopu. Ma dwa
- * tryby, a tryb wynika z KONTEKSTU (bez przełącznika):
- * - `note` (domyślny, trasy dziennika) — szybka notatka: Enter/przycisk zapisuje
- *   treść jako wersję roboczą i otwiera kreator `/new`; mikrofon dyktuje do pola,
- * - `chat` (trasa `/chat`; na desktopie także otwarty panel Freuda) — wejście
- *   rozmowy: Enter/przycisk wysyła do terapeuty.
- * Zawsze widoczny jest dokładnie JEDEN przycisk akcji — znaczenie pola sygnalizują
- * placeholder i ikona/kolor przycisku.
+ * Pole pisania — jedno w całej aplikacji. Ma dwa tryby, a tryb wynika z
+ * KONTEKSTU (bez przełącznika):
+ * - `note` (domyślny, Dziennik) — szybka notatka: Enter/przycisk zapisuje treść
+ *   jako wersję roboczą i otwiera nowy wpis `/new`; mikrofon dyktuje do pola,
+ * - `chat` (trasa `/chat`) — wejście rozmowy: Enter/przycisk wysyła do terapeuty.
+ * Zawsze widoczny jest dokładnie JEDEN przycisk akcji — znaczenie pola sygnalizuje
+ * placeholder.
  *
  * Tekst pola żyje w `composer-text` (store), żeby przetrwał zmianę trasy i żeby
  * zakładka „Nowy wpis" mogła zabrać go jako wersję roboczą.
  *
- * Bez własnego pozycjonowania — układ (fixed, odstępy) ustala `BottomBar`.
+ * Bez własnego pozycjonowania — miejsce ustala rodzic: dolny pasek na telefonie
+ * (`BottomBar`), kolumna listy w Dzienniku i dół rozmowy na komputerze.
  *
- * Lewy przycisk pola: na mobile, tylko na `/chat` (tam nie ma paska zakładek z
- * „Więcej"), hamburger (`NavMenu`) z rzadszą nawigacją; na desktopie ikona Bota — jawny przełącznik trybu (otwiera/zamyka panel rozmowy),
- * ukryta na `/chat`, gdzie trybem rządzi trasa.
+ * Tekst ma 16 px na każdym ekranie: mniejszy sprawia, że iOS przybliża stronę
+ * przy wpisywaniu.
+ *
+ * Lewy przycisk pola: na telefonie, tylko na `/chat` (tam nie ma paska zakładek
+ * z „Więcej"), menu (`NavMenu`) z rzadszą nawigacją.
  */
 export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
-  const router = useRouter();
+  const router = useProgressRouter();
   const text = useComposerText();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const entries = useEntries();
   const active = useActiveContext();
   const therapist = useActiveTherapist();
-  const { status, open } = useTherapistChat();
+  const { status } = useTherapistChat();
   const [enabledPref] = useTherapistEnabled();
   const session = useSession();
   const therapistLimit = useAiLimit("therapist");
   const transcribeLimit = useAiLimit("transcribe");
 
-  // Funkcje AI (czat z Freudem, mikrofon) wyłącznie dla zalogowanych — i tylko
-  // gdy rozmowa jest włączona w preferencjach. Niezalogowany nie widzi tych akcji
-  // (pole służy mu wyłącznie do notatki → „Zapisz jako wpis").
+  // Funkcje AI (czat, mikrofon) wyłącznie dla zalogowanych — i tylko gdy rozmowa
+  // jest włączona w preferencjach. Niezalogowany nie widzi tych akcji (pole służy
+  // mu wyłącznie do notatki → „Zapisz jako wpis").
   const loggedIn = Boolean(session);
   const enabled = enabledPref && loggedIn;
-
-  // Tryb czatu: trasa `/chat` (mobile i desktop) LUB otwarty panel (desktop —
-  // po fazie store'ów `open` ustawia wyłącznie desktopowy przełącznik Bota).
-  const chatMode = mode === "chat" || open;
-
-  // Panel trzymamy zamontowany przez czas animacji wyjścia: gdy `open` schodzi
-  // do false, najpierw odtwarzamy animację (`closing`), a dopiero po niej
-  // odmontowujemy. Otwarcie w trakcie zamykania (cleanup) anuluje odmontowanie.
-  const [mounted, setMounted] = useState(false);
-  const [closing, setClosing] = useState(false);
-  useEffect(() => {
-    if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- montaż panelu na czas animacji wejścia
-      setMounted(true);
-      setClosing(false);
-    } else if (mounted) {
-      setClosing(true);
-      const timer = setTimeout(() => {
-        setMounted(false);
-        setClosing(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [open, mounted]);
+  const chatMode = mode === "chat";
 
   // Wysyła `value` do terapeuty (gdy włączone, jest zgoda i nie trwa odpowiedź).
+  // Bez zgody ekran zgody pokazuje sama strona `/chat`.
   const submit = (value: string) => {
     const trimmed = value.trim();
     if (!enabled || !trimmed || status === "streaming") return;
     if (therapistLimit.blocked) return; // dzienny limit wyczerpany (przycisk i tak wyłączony)
-    if (!hasTherapistConsent()) {
-      // Na `/chat` ekran zgody pokazuje sama strona; na desktopie otwieramy panel.
-      if (mode !== "chat") setOpen(true);
-      return;
-    }
+    if (!hasTherapistConsent()) return;
     const journalContext = buildJournalContext(entries);
     const uiContext = buildUiContext(active, entries);
     void sendMessage(trimmed, journalContext, uiContext);
     setComposerText("");
   };
 
-  // Zapisuje treść pola jako wersję roboczą i przenosi do kreatora wpisu, gdzie
-  // użytkownik wybiera metryki (jak się czuje) i zatwierdza zapis.
+  // Zapisuje treść pola jako wersję roboczą i przenosi do nowego wpisu, gdzie
+  // użytkownik ocenia dzień i zatwierdza zapis.
   const saveAsEntry = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
     setDraft(textToHtml(trimmed));
     playSound("entry-new");
-    setOpen(false);
     setComposerText("");
     router.push("/new");
   };
@@ -156,13 +126,13 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
     setComposerText(combined);
   });
 
-  // Pole rośnie do ~4 wierszy (text-sm, leading-5 ≈ 20px), dalej tekst się
+  // Pole rośnie do 4 wierszy (16 px, interlinia 24 px), dalej tekst się
   // przewija. Wysokość liczymy po każdej zmianie treści.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 80)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 116)}px`;
   }, [text]);
 
   const hasText = text.trim().length > 0;
@@ -171,13 +141,16 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
   const micDisabled =
     !supported || transcribing || (transcribeLimit.blocked && !listening);
 
+  // Okrągły przycisk 44 px — cel dotyku na telefonie, ten sam na komputerze.
+  const roundButton =
+    "flex size-11 shrink-0 items-center justify-center rounded-full transition-[color,background-color,opacity]";
+
   return (
     <div className="flex w-full flex-col gap-2">
       {/* Nagrywanie = tryb wyłączności: pełnoekranowa, niewidoczna nakładka
-          przechwytuje KAŻDE tapnięcie (także w hamburger/nawigację) i zamienia
-          je w „zatrzymaj nagrywanie" — nic innego się nie wydarzy. Portal do
-          <body> (glass-panel ma backdrop-blur → przycinałby fixed), z-[60] nad
-          menu (z-50). Po zatrzymaniu nakładka znika i interakcje wracają. */}
+          przechwytuje KAŻDE tapnięcie (także w menu/nawigację) i zamienia je w
+          „zatrzymaj nagrywanie" — nic innego się nie wydarzy. Portal do <body>,
+          z-[60] nad menu (z-50). Po zatrzymaniu nakładka znika. */}
       {listening &&
         typeof document !== "undefined" &&
         createPortal(
@@ -190,17 +163,11 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
           document.body
         )}
 
-      {/* Panel rozmowy z Freudem (desktop) — pływa NAD paskiem. Na `/chat`
-          rozmowa jest treścią strony, więc panelu nie montujemy. */}
-      {enabled && mounted && mode !== "chat" && (
-        <TherapistChat closing={closing} />
-      )}
-
       {/* Ostrzeżenie o zbliżającym się / wyczerpanym dziennym limicie pytań. */}
       {enabled && chatMode && (therapistLimit.blocked || therapistLimit.nearLimit) && (
-        <p className="px-3 text-center text-xs text-muted-foreground">
+        <p className="px-4 text-center text-caption text-muted-foreground">
           {therapistLimit.blocked
-            ? "Wykorzystałeś dzienny limit pytań do terapeuty. Odnowi się o północy."
+            ? "Wykorzystałeś dzienny limit pytań do terapeuty. Odnowi się o północy."
             : `Zostało ${therapistLimit.remaining} pytań do terapeuty na dziś.`}
         </p>
       )}
@@ -208,97 +175,39 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
       {/* Transkrypcja padła na błędzie sieci/serwera — nagranie jest zachowane,
           więc oferujemy ponowienie zamiast po cichu gubić podyktowaną treść. */}
       {transcribeError && !transcribing && (
-        <div className="flex items-center justify-center gap-2 px-3 text-center text-xs text-destructive">
+        <div className="flex items-center justify-center gap-2 px-4 text-center text-caption text-destructive">
           <span>Nie udało się rozpoznać mowy.</span>
           <button
             type="button"
             onClick={retryTranscribe}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium underline-offset-2 transition-colors hover:bg-destructive/10 hover:underline"
+            className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-medium underline-offset-2 transition-colors hover:underline"
           >
-            <RotateCw className="size-3" />
+            <RotateCw className="size-3" aria-hidden />
             Ponów
           </button>
         </div>
       )}
 
-      {/* Desktop: zakładki trybu NAD polem (uszko karty przy lewym rogu) —
-          jawnie rozdzielają „piszę notatkę" od „piszę do persony" (mobilny
-          odpowiednik to zakładki Dziennik/Rozmowa), nie zabierając polu ani
-          piksela szerokości. Aktywny segment = bieżący tryb; klik otwiera/zamyka
-          panel rozmowy. Na `/chat` zbędne (trybem rządzi trasa), bez włączonej
-          rozmowy pole jest tylko do notatek — wtedy ich nie ma. */}
-      {enabled && mode !== "chat" && (
-        <div className="hidden lg:flex">
-          <div
-            role="tablist"
-            aria-label="Tryb pola"
-            className="ml-3 flex items-center rounded-full border bg-background/85 p-0.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={!chatMode}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                !chatMode
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <NotebookPen className="size-3.5" />
-              Notatka
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={chatMode}
-              onClick={() => setOpen(true)}
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                chatMode
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Bot className="size-3.5" />
-              Rozmowa
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Jeden, wspólny glass-panel: pole + (na mobile) nawigacja pod nim.
-          Na desktopie panel jest przezroczysty — pole ma własną pastylkę. */}
-      <div
+      <form
+        // Znacznik „mikrofon w użyciu" dla CSS w BottomBar: pasek zakładek ma
+        // zostać schowany przez całe nagrywanie/transkrypcję (tap w mikrofon
+        // zabiera fokus polu, więc sam `textarea:focus` by nie wystarczył).
+        data-voice={listening || transcribing ? "" : undefined}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (chatMode) submit(text);
+          else saveAsEntry(text);
+        }}
         className={cn(
-          "w-full overflow-hidden rounded-[1.75rem] border bg-background/85 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70",
-          // Wskaźnik fokusu dla klawiatury — na mobile pastylką jest ten div.
-          "transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
-          // Na desktopie pastylką jest <form> (niżej), więc ring z diva gasimy.
-          "lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none lg:supports-[backdrop-filter]:bg-transparent lg:focus-within:ring-0"
+          "flex w-full items-end gap-1 rounded-lg border border-input bg-card p-1 transition-colors",
+          // Fokus: wyraźniejsza obwódka całego pola zamiast pierścienia na
+          // samym tekście (pole tekstowe dostaje :focus-visible przy każdym
+          // stuknięciu, więc gruby pierścień byłby krzykliwy).
+          "focus-within:border-ring",
+          mode !== "chat" && "pl-3"
         )}
       >
-        <form
-          // Znacznik „mikrofon w użyciu" dla CSS w BottomBar: pasek zakładek ma
-          // zostać schowany przez całe nagrywanie/transkrypcję (tap w mikrofon
-          // zabiera fokus polu, więc sam `textarea:focus` by nie wystarczył).
-          data-voice={listening || transcribing ? "" : undefined}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (chatMode) submit(text);
-            else saveAsEntry(text);
-          }}
-          className={cn(
-            "flex min-h-16 w-full items-center gap-1.5 px-3 py-2.5",
-            // Bez hamburgera tekst pola nie może kleić się do zaokrąglonej krawędzi.
-            mode !== "chat" && "max-lg:pl-5",
-            // Na desktopie pastylką jest ten <form> — tu ląduje wskaźnik fokusu.
-            "lg:rounded-[1.75rem] lg:border lg:bg-background/85 lg:shadow-lg lg:backdrop-blur lg:supports-[backdrop-filter]:bg-background/70",
-            "lg:transition-[border-color,box-shadow] lg:focus-within:border-ring lg:focus-within:ring-[3px] lg:focus-within:ring-ring/50"
-          )}
-        >
-        {/* Mobile, tylko /chat: hamburger → menu rzadszej nawigacji. */}
+        {/* Telefon, tylko /chat: menu rzadszej nawigacji. */}
         {mode === "chat" && <NavMenu className="lg:hidden" menuOrigin="left" />}
 
         <textarea
@@ -333,48 +242,37 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
               : "Notatka do nowego wpisu"
           }
           className={cn(
-            "hide-native-scroll max-h-20 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent p-0 text-sm leading-5 outline-none placeholder:text-muted-foreground",
+            "hide-native-scroll max-h-[116px] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2.5 text-body outline-none placeholder:text-muted-foreground focus-visible:outline-none",
             listening && "placeholder:text-destructive"
           )}
         />
 
         {hasText ? (
-          chatMode ? (
-            // Tryb czatu: wyślij do terapeuty.
-            <button
-              type="submit"
-              disabled={!canSendToFreud}
-              aria-label={`Wyślij do: ${therapist.name}`}
-              title={
-                therapistLimit.blocked
-                  ? "Dzienny limit pytań wykorzystany — odnowi się o północy"
-                  : `Wyślij do: ${therapist.name}`
-              }
-              className={cn(
-                "flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95",
-                !canSendToFreud &&
-                  "cursor-not-allowed opacity-50 hover:scale-100"
-              )}
-            >
-              <SendHorizontal className="size-5" />
-            </button>
-          ) : (
-            // Tryb notatki: zapisz jako wpis (kreator `/new`).
-            <button
-              type="submit"
-              aria-label="Zapisz jako wpis"
-              title="Zapisz jako wpis"
-              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95"
-            >
-              <NotebookPen className="size-5" />
-            </button>
-          )
+          <button
+            type="submit"
+            disabled={chatMode && !canSendToFreud}
+            aria-label={chatMode ? `Wyślij do: ${therapist.name}` : "Zapisz jako wpis"}
+            title={
+              chatMode && therapistLimit.blocked
+                ? "Dzienny limit pytań wykorzystany — odnowi się o północy"
+                : chatMode
+                  ? `Wyślij do: ${therapist.name}`
+                  : "Zapisz jako wpis"
+            }
+            className={cn(
+              roundButton,
+              "bg-primary text-primary-foreground hover:bg-primary/90",
+              chatMode && !canSendToFreud && "cursor-not-allowed opacity-50"
+            )}
+          >
+            <ArrowUp className="size-5" aria-hidden />
+          </button>
         ) : loggedIn ? (
           <button
             type="button"
             onClick={() => {
-              // Composer jest nad backdropem menu, więc tap w mikrofon go nie
-              // zamyka „sam z siebie" — robimy to jawnie i od razu (jeden tap).
+              // Pole jest nad tłem menu, więc tap w mikrofon go nie zamyka
+              // „sam z siebie" — robimy to jawnie i od razu (jeden tap).
               closeMenu();
               toggle();
             }}
@@ -383,7 +281,7 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
             aria-busy={transcribing}
             aria-label={
               transcribing
-                ? "Transkrypcja…"
+                ? "Przepisuję"
                 : listening
                   ? "Zatrzymaj nagrywanie"
                   : "Nagraj głos"
@@ -394,29 +292,28 @@ export function ComposerInput({ mode = "note" }: { mode?: "note" | "chat" }) {
                 : transcribeLimit.blocked && !listening
                   ? "Dzienny limit transkrypcji wykorzystany — odnowi się o północy"
                   : transcribing
-                    ? "Transkrypcja…"
+                    ? "Przepisuję"
                     : listening
                       ? "Zatrzymaj nagrywanie"
                       : "Nagraj notatkę głosem"
             }
             className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-full transition-transform",
+              roundButton,
               listening
-                ? "bg-destructive text-white"
-                : "bg-primary text-primary-foreground hover:scale-105 active:scale-95",
-              micDisabled && "cursor-not-allowed hover:scale-100",
+                ? "bg-destructive text-destructive-foreground"
+                : "text-foreground hover:bg-accent",
+              micDisabled && "cursor-not-allowed",
               micDisabled && !transcribing && "opacity-50"
             )}
           >
             {transcribing ? (
               <LoadingDots />
             ) : (
-              <Mic className={cn("size-5", listening && "animate-pulse")} />
+              <Mic className={cn("size-5", listening && "animate-pulse")} aria-hidden />
             )}
           </button>
         ) : null}
-        </form>
-      </div>
+      </form>
     </div>
   );
 }

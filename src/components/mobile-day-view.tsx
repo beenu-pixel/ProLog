@@ -1,29 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
+import { DayContent } from "@/components/day-content";
 import { DayStrip } from "@/components/day-strip";
-import { MetricValue } from "@/components/metric-value";
-import { PhotoGallery } from "@/components/photo-gallery";
-import { LoadingText } from "@/components/ui/loading-dots";
 import { useEntries } from "@/hooks/use-entries";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useEntriesSyncing } from "@/lib/auth";
 import { setOpenDay } from "@/lib/active-context";
-import { sanitizeEntryHtml } from "@/lib/sanitize";
-import { METRICS } from "@/lib/metrics";
 import { groupByDay } from "@/lib/stats";
-import { addDays, dayKey, formatDate, formatTime } from "@/lib/format";
-import type { Entry } from "@/lib/types";
+import { addDays, dayKey } from "@/lib/format";
 
 const DAYS_BACK = 30;
 
 /**
- * Mobilny widok Dziennika w stylu Imperfect: u góry poziomy pasek dni, po środku
- * treść wpisu (lub wpisów) z zaznaczonego dnia. Domyślnie zaznaczony jest dziś.
- * Gdy dla wybranego dnia nie ma wpisu — wyśrodkowany przycisk z mikrofonem
- * prowadzący do kreatora wpisu.
+ * Widok dnia na telefonie: u góry tytuł i pasek dni (przyklejone), niżej treść
+ * zaznaczonego dnia (`DayContent`). Domyślnie zaznaczony jest dziś; pusty dziś
+ * zaprasza do pisania.
  */
 export function MobileDayView() {
   const entries = useEntries();
@@ -55,8 +48,10 @@ export function MobileDayView() {
 
   return (
     <div className="flex w-full flex-1 flex-col">
-      <div className="sticky top-14 z-30 -mt-6 bg-background/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky top-0 z-30 -mx-4 bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
+        <h1 className="text-title font-semibold">Dziennik</h1>
         <DayStrip
+          className="mt-3"
           days={days}
           selectedKey={selectedKey}
           entriesByDay={entriesByDay}
@@ -64,80 +59,21 @@ export function MobileDayView() {
         />
       </div>
 
-      {/* `key={selectedKey}` remontuje treść przy zmianie dnia → prosty fade
-          (jak panel szczegółu na desktopie). Globalny wyłącznik animacji zeruje go. */}
+      {/* `key={selectedKey}` remontuje treść przy zmianie dnia → krótkie
+          pojawienie się (tylko opacity), które mówi „to inny dzień”. Ograniczony
+          ruch i wyłącznik animacji je zerują. */}
       <div
         key={selectedKey}
-        className="flex flex-1 flex-col pt-4 duration-300 ease-out animate-in fade-in motion-reduce:animate-none"
+        className="flex flex-1 flex-col pt-4 duration-(--duration-fast) ease-out animate-in fade-in motion-reduce:animate-none"
       >
-        {!ready ? null : dayEntries.length > 0 ? (
-          <div className="space-y-8">
-            {dayEntries.map((entry) => (
-              <DayEntry key={entry.id} entry={entry} />
-            ))}
-          </div>
-        ) : (
-          <EmptyDay syncing={syncing} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Pojedynczy wpis dnia: godzina, tytuł, metryki i treść. Tap → szczegół. */
-function DayEntry({ entry }: { entry: Entry }) {
-  const hasMetrics = METRICS.some(
-    (metric) => typeof entry[metric.key] === "number"
-  );
-
-  return (
-    <Link href={`/entries/${entry.id}`} className="block space-y-4">
-      <div className="space-y-1">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-          {formatDate(entry.createdAt)} · {formatTime(entry.createdAt)}
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight">{entry.title}</h1>
-      </div>
-
-      {hasMetrics && (
-        <div className="space-y-1 rounded-xl border p-4">
-          {METRICS.map((metric) =>
-            typeof entry[metric.key] === "number" ? (
-              <MetricValue
-                key={metric.key}
-                metricKey={metric.key}
-                value={entry[metric.key]}
-              />
-            ) : null
-          )}
-        </div>
-      )}
-
-      {entry.content ? (
-        <div
-          className="prose-content text-base leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: sanitizeEntryHtml(entry.content) }}
+        <DayContent
+          date={selected}
+          entries={dayEntries}
+          ready={ready}
+          syncing={syncing}
+          onBackToToday={() => setSelected(today)}
         />
-      ) : entry.photos?.length ? null : (
-        <p className="text-sm italic text-muted-foreground">Brak treści.</p>
-      )}
-
-      {entry.photos?.length ? <PhotoGallery photos={entry.photos} /> : null}
-    </Link>
-  );
-}
-
-/** Pusty dzień: zwięzła informacja. Rozmowa/dodawanie jest w dolnym pasku. */
-function EmptyDay({ syncing }: { syncing: boolean }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
-      {syncing ? (
-        <LoadingText>Wczytuję wpisy</LoadingText>
-      ) : (
-        <p className="max-w-[16rem] text-sm text-muted-foreground">
-          Brak wpisu na ten dzień.
-        </p>
-      )}
+      </div>
     </div>
   );
 }

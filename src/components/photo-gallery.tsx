@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 
 import { PhotoLightbox } from "@/components/photo-lightbox";
+import { LoadingDots, LoadingText } from "@/components/ui/loading-dots";
 import { useSignedPhotoUrls } from "@/hooks/use-signed-photo-urls";
 import type { EntryPhoto } from "@/lib/types";
 
@@ -33,9 +33,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
 
   if (loading && resolved.length === 0) {
     return (
-      <div className="flex h-20 items-center justify-center rounded-xl border">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-      </div>
+      <LoadingText className="h-20 rounded-lg border">Wczytuję zdjęcia</LoadingText>
     );
   }
 
@@ -98,8 +96,8 @@ function GalleryImage({ url }: { url: string }) {
   return (
     <>
       {!loaded && (
-        <span className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+          <LoadingDots />
         </span>
       )}
       {/* eslint-disable-next-line @next/next/no-img-element -- signed URL Supabase */}

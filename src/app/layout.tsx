@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Atkinson_Hyperlegible_Mono,
+  Atkinson_Hyperlegible_Next,
+} from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -7,14 +10,21 @@ import { AppShell } from "@/components/app-shell";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { TapFeedback } from "@/components/tap-feedback";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// `latin-ext` niesie polskie znaki (ą, ć, ę, ł, ń, ó, ś, ź, ż) — ładowane od
+// razu, a nie dociągane przy pierwszym wystąpieniu. Kroje zastępcze z
+// dopasowanymi metrykami są w globals.css (next/font nie zna jeszcze Atkinsona).
+const atkinson = Atkinson_Hyperlegible_Next({
+  variable: "--font-atkinson",
+  subsets: ["latin", "latin-ext"],
+  adjustFontFallback: false,
+  fallback: ["Atkinson Hyperlegible Next Fallback", "Arial", "sans-serif"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const atkinsonMono = Atkinson_Hyperlegible_Mono({
+  variable: "--font-atkinson-mono",
+  subsets: ["latin", "latin-ext"],
+  adjustFontFallback: false,
+  fallback: ["Atkinson Hyperlegible Mono Fallback", "Courier New", "monospace"],
 });
 
 export const metadata: Metadata = {
@@ -24,8 +34,13 @@ export const metadata: Metadata = {
 
 // `cover` odsłania obszar pod wcięciami (notch/home indicator), dzięki czemu
 // `env(safe-area-inset-bottom)` w dolnym pasku zakładek ma realną wartość.
+// Kolor paska przeglądarki = tło strony w danym motywie systemu.
 export const viewport: Viewport = {
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9fafb" },
+    { media: "(prefers-color-scheme: dark)", color: "#121314" },
+  ],
 };
 
 export default function RootLayout({
@@ -36,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="pl"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${atkinson.variable} ${atkinsonMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full">

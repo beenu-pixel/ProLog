@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 
+import { LoadingText } from "@/components/ui/loading-dots";
 import { getAccessToken } from "@/lib/auth";
 
 // Panel zużycia AI dla właściciela: kto (konto) ile wywołał i ile tokenów zużył,
@@ -75,9 +75,7 @@ export function UsageDashboard() {
 
       <div className="rounded-xl border">
         {state.kind === "loading" ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Wczytywanie…
-          </div>
+          <LoadingText className="p-6">Wczytuję zużycie</LoadingText>
         ) : state.kind === "error" ? (
           <p className="p-4 text-sm text-destructive">
             Nie udało się pobrać zużycia.

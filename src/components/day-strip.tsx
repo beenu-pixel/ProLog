@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { Image as ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { dayKey, formatWeekdayShort } from "@/lib/format";
+import { dayKey, formatWeekdayTiny } from "@/lib/format";
 import { isToday } from "@/lib/stats";
 import type { Entry } from "@/lib/types";
 
@@ -15,12 +15,14 @@ interface DayStripProps {
   selectedKey: string;
   entriesByDay: Map<string, Entry[]>;
   onSelect: (date: Date) => void;
+  className?: string;
 }
 
 /**
  * Poziomy, przewijalny pasek dni (inspiracja: Imperfect). Każdy kafelek to skrót
- * dnia tygodnia, duża liczba dnia i kropka, gdy w tym dniu są wpisy. Zaznaczony
- * dzień ma samo szare tło; po zmianie zaznaczenia kafelek wjeżdża do widoku.
+ * dnia tygodnia (dziś: „dziś”), liczba dnia i kropka, gdy w tym dniu są wpisy.
+ * Zaznaczony dzień jest odwrócony (pełna tinta), więc widać go bez czytania; po
+ * zmianie zaznaczenia kafelek wjeżdża do widoku. Okno mieści dokładnie tydzień.
  *
  * Przewijanie myszką: kółko (pionowy delta → poziom) oraz „chwyć i przeciągnij"
  * (wciśnięcie + ruch), tak jak palcem na telefonie. Dotyk korzysta z natywnego
@@ -31,6 +33,7 @@ export function DayStrip({
   selectedKey,
   entriesByDay,
   onSelect,
+  className,
 }: DayStripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -99,12 +102,11 @@ export function DayStrip({
   };
 
   return (
-    // Okno przewijania ograniczone do DOKŁADNIE 7 kafelków (7×w-14 + 6×gap-2.5
-    // ≈ 28.75rem) i wyśrodkowane. `max-width` z natury przycina szersze ekrany
-    // (tablet w pionie i poziomie pokaże 7), a na węższym telefonie pasek jest
-    // pełnej szerokości i mieści mniej — resztę odsłania wtedy przewijanie.
-    // Bez paddingu w poziomie na treści, by liczba widocznych kafelków była
-    // spójna niezależnie od pozycji przewijania (padding zaniżał/zawyżał liczbę).
+    // Okno mieści DOKŁADNIE tydzień: kafelek ma 1/7 szerokości paska (jednostki
+    // kontenera), więc pierwszy i ostatni stoją równo z krawędzią treści i tytułu.
+    // Cel dotyku nie schodzi poniżej 44 px — na najwęższych telefonach mieści się
+    // wtedy mniej dni, a resztę odsłania przewijanie. Pasek ma 4 px zapasu
+    // (z ujemnym marginesem), żeby pierścień fokusu kafelka nie był ucięty.
     <div
       ref={scrollRef}
       onPointerDown={onPointerDown}
@@ -112,9 +114,12 @@ export function DayStrip({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onClickCapture={onClickCapture}
-      className="hide-native-scroll mx-auto w-full max-w-[28.75rem] cursor-grab select-none overflow-x-auto active:cursor-grabbing"
+      className={cn(
+        "@container hide-native-scroll -m-1 max-w-md cursor-grab select-none overflow-x-auto p-1 active:cursor-grabbing",
+        className
+      )}
     >
-      <div className="flex w-max gap-2.5 px-1">
+      <div className="flex w-max gap-1">
         {days.map((date) => {
           const key = dayKey(date);
           const dayEntries = entriesByDay.get(key) ?? [];
@@ -131,26 +136,34 @@ export function DayStrip({
               onClick={() => onSelect(date)}
               aria-current={selected ? "date" : undefined}
               aria-label={
+                (today ? "Dziś, " : "") +
                 date.toLocaleDateString("pl-PL", {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
-                }) + (hasPhotos ? ", ze zdjęciem" : "")
+                }) +
+                (hasPhotos ? ", ze zdjęciem" : has ? ", z wpisem" : "")
               }
               className={cn(
-                "flex w-14 shrink-0 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 transition-colors",
-                selected ? "bg-accent" : "hover:bg-accent/60"
+                "flex w-[max(44px,calc((100cqw-24px)/7))] shrink-0 flex-col items-center gap-1 rounded-md py-2 transition-colors",
+                selected
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-accent"
               )}
             >
               <span
                 className={cn(
-                  "text-[10px] font-medium uppercase tracking-wide",
-                  selected ? "text-foreground" : "text-muted-foreground"
+                  "text-caption",
+                  selected
+                    ? "text-primary-foreground"
+                    : today
+                      ? "font-semibold text-foreground"
+                      : "text-subtle-foreground"
                 )}
               >
-                {formatWeekdayShort(date).replace(".", "")}
+                {today ? "dziś" : formatWeekdayTiny(date)}
               </span>
-              <span className="text-xl font-bold leading-none tabular-nums">
+              <span className="font-mono text-body font-semibold tabular-nums">
                 {date.getDate()}
               </span>
               {/* Stała wysokość znacznika (mieści ikonę), by liczby były wyrównane
@@ -161,7 +174,7 @@ export function DayStrip({
                   <ImageIcon
                     className={cn(
                       "size-3",
-                      selected ? "text-foreground" : "text-muted-foreground"
+                      selected ? "text-primary-foreground" : "text-muted-foreground"
                     )}
                     aria-hidden
                   />
@@ -169,17 +182,12 @@ export function DayStrip({
                   <span
                     className={cn(
                       "size-1.5 rounded-full",
-                      selected ? "bg-foreground" : "bg-muted-foreground"
+                      selected ? "bg-primary-foreground" : "bg-muted-foreground"
                     )}
                     aria-hidden
                   />
                 ) : null}
               </span>
-              {today && (
-                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  dziś
-                </span>
-              )}
             </button>
           );
         })}

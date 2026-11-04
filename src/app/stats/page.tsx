@@ -73,7 +73,7 @@ export default function StatsPage() {
       <PageScroll contentClassName="lg:pb-28">
         <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-6">
           <h1 className="text-2xl font-semibold tracking-tight">Statystyki</h1>
-          <LoadingText className="min-h-[calc(100dvh-20.5rem)] lg:min-h-[60vh]">
+          <LoadingText className="min-h-[calc(100dvh-17rem)] lg:min-h-[60vh]">
             Wczytuję wpisy
           </LoadingText>
         </div>

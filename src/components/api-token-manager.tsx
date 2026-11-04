@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, KeyRound, Loader2, Trash2 } from "lucide-react";
+import { Check, Copy, KeyRound, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingDots, LoadingText } from "@/components/ui/loading-dots";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { useSession } from "@/lib/auth";
@@ -119,8 +120,13 @@ export function ApiTokenManager() {
               if (e.key === "Enter" && !creating) void handleCreate();
             }}
           />
-          <Button onClick={() => void handleCreate()} disabled={creating}>
-            {creating ? <Loader2 className="size-4 animate-spin" /> : "Wygeneruj"}
+          <Button
+            onClick={() => void handleCreate()}
+            disabled={creating}
+            aria-busy={creating}
+          >
+            {creating ? "Generuję" : "Wygeneruj"}
+            {creating && <LoadingDots />}
           </Button>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -154,9 +160,7 @@ export function ApiTokenManager() {
       {/* Lista */}
       <div className="rounded-xl border">
         {tokens === null ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Wczytywanie…
-          </div>
+          <LoadingText className="p-6">Wczytuję tokeny</LoadingText>
         ) : tokens.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             Nie masz jeszcze żadnych tokenów.

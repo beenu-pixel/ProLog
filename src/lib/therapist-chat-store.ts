@@ -17,42 +17,38 @@ import {
 } from "@/lib/therapist-store";
 
 // Reaktywny store stanu rozmowy z terapeutą (wzorzec useSyncExternalStore, jak
-// `storage.ts`). Współdzielony przez `ComposerBar` (wysyłka, otwieranie panelu)
-// i `TherapistChat` (lista wiadomości). Persona na sztywno = domyślna (Freud);
-// architektura person jest gotowa na przełącznik w przyszłości.
+// `storage.ts`). Współdzielony przez pole pisania (wysyłka) i ekran `/chat`
+// (lista wiadomości).
 
 type Status = "idle" | "streaming";
 
 interface ChatState {
   messages: ChatMessage[];
   status: Status;
-  open: boolean;
   historyLoading: boolean;
 }
 
 let messages: ChatMessage[] = [];
 let status: Status = "idle";
-let open = false;
 let historyLoading = false;
 let loaded = false;
 // Aktywna persona dla TEJ rozmowy. Inicjalizowana domyślną; przy pierwszym
-// otwarciu panelu i przy `selectTherapist` synchronizowana z `active-therapist`
+// wczytaniu i przy `selectTherapist` synchronizowana z `active-therapist`
 // (localStorage). Historia jest osobna per `therapistId`.
 let therapistId = DEFAULT_THERAPIST.id;
 
 const listeners = new Set<() => void>();
 
 // Snapshot o stabilnej referencji — nowa powstaje tylko po realnej zmianie.
-let snapshot: ChatState = { messages, status, open, historyLoading };
+let snapshot: ChatState = { messages, status, historyLoading };
 const SERVER_SNAPSHOT: ChatState = {
   messages: [],
   status: "idle",
-  open: false,
   historyLoading: false,
 };
 
 function emit(): void {
-  snapshot = { messages, status, open, historyLoading };
+  snapshot = { messages, status, historyLoading };
   listeners.forEach((listener) => listener());
 }
 
@@ -67,11 +63,11 @@ function updateAssistant(id: string, content: string): void {
   messages = messages.map((m) => (m.id === id ? { ...m, content } : m));
 }
 
-/** Leniwe wczytanie historii (przy pierwszym otwarciu panelu). */
+/** Leniwe wczytanie historii (przy pierwszym wejściu w rozmowę). */
 async function ensureLoaded(): Promise<void> {
   if (loaded) return;
   loaded = true;
-  // Zsynchronizuj wybraną personę z localStorage przy pierwszym otwarciu.
+  // Zsynchronizuj wybraną personę z localStorage przy pierwszym wczytaniu.
   const persisted = getActiveTherapistId();
   if (persisted !== therapistId) therapistId = persisted;
   historyLoading = true;
@@ -87,10 +83,7 @@ async function ensureLoaded(): Promise<void> {
   emit();
 }
 
-/**
- * Wczytuje historię rozmowy bez otwierania panelu — dla pełnoekranowego widoku
- * `/chat`, który korzysta ze store'a, ale nie używa stanu `open` (desktop-only).
- */
+/** Wczytuje historię rozmowy (ekran `/chat`). */
 export async function loadChat(): Promise<void> {
   await ensureLoaded();
 }
@@ -114,22 +107,6 @@ export async function selectTherapist(id: string): Promise<void> {
 /** Id aktywnej persony tej rozmowy (poza Reactem). */
 export function activeTherapistId(): string {
   return therapistId;
-}
-
-export function setOpen(value: boolean): void {
-  if (open === value) return;
-  open = value;
-  if (open) void ensureLoaded();
-  emit();
-}
-
-/** Bieżący stan panelu (poza Reactem) — do koordynacji z menu nawigacji. */
-export function isOpen(): boolean {
-  return open;
-}
-
-export function toggleOpen(): void {
-  setOpen(!open);
 }
 
 /**

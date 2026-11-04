@@ -97,10 +97,10 @@ export function NavMenu({
 
   const itemClass = (active: boolean) =>
     cn(
-      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+      "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-ui transition-colors",
       active
         ? "bg-accent font-medium text-foreground"
-        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+        : "text-muted-foreground hover:bg-accent hover:text-foreground"
     );
 
   return (
@@ -114,16 +114,21 @@ export function NavMenu({
         className={cn(
           "flex shrink-0 items-center justify-center transition-colors",
           isTab
-            ? "min-h-14 w-full flex-col gap-0.5 pt-1.5 pb-1 text-xs leading-none"
-            : "size-9 rounded-full",
-          highlighted ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            ? "min-h-14 w-full flex-col gap-1 pt-2 pb-1 text-caption"
+            : "size-11 rounded-full",
+          highlighted
+            ? "text-foreground"
+            : isTab
+              ? "text-subtle-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           isTab && highlighted && "font-medium",
           className
         )}
       >
         <Menu
-          className="size-5"
-          strokeWidth={isTab ? (highlighted ? 2.4 : 1.8) : undefined}
+          className={isTab ? "size-6" : "size-5"}
+          strokeWidth={isTab ? (highlighted ? 2.25 : 1.75) : undefined}
+          aria-hidden
         />
         {isTab && "Więcej"}
       </button>
@@ -160,24 +165,26 @@ export function NavMenu({
           >
             <div
               className={cn(
-                "w-full max-w-md overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",
+                // Jedna elewacja: w jasnym motywie cień, w ciemnym (gdzie cienia
+                // nie widać) obwódka jaśniejszej powierzchni.
+                "w-full max-w-md overflow-hidden rounded-lg border border-transparent bg-popover text-popover-foreground shadow-overlay motion-reduce:animate-none dark:border-border",
                 menuOrigin === "right" ? "origin-bottom-right" : "origin-bottom-left",
                 closing ? "nav-menu-out" : "nav-menu-in"
               )}
             >
-              <div className="flex items-center justify-between border-b px-4 py-2.5">
-                <p className="text-sm font-semibold">Więcej</p>
+              <div className="flex items-center justify-between border-b py-1 pr-1 pl-4">
+                <p className="text-ui font-semibold">Więcej</p>
                 <button
                   type="button"
                   onClick={() => closeMenu()}
                   aria-label="Zamknij menu"
-                  className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  <X className="size-4" />
+                  <X className="size-5" aria-hidden />
                 </button>
               </div>
 
-              <nav className="space-y-0.5 p-2">
+              <nav className="space-y-1 p-2">
                 {ITEMS.map((item) => {
                   const Icon = item.icon;
                   const active = item.isActive(pathname);
@@ -188,7 +195,7 @@ export function NavMenu({
                       onClick={() => closeMenu()}
                       className={itemClass(active)}
                     >
-                      <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                      <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
                       {item.label}
                     </Link>
                   );

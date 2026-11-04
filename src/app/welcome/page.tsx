@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useProgressRouter } from "@/lib/nav-progress";
 
 import { Button } from "@/components/ui/button";
 import { LoadingDots } from "@/components/ui/loading-dots";
@@ -40,7 +40,7 @@ const SLOW_CONNECTION_MS = 6000;
  * (offline). Zalogowany użytkownik jest od razu przekierowany do dziennika.
  */
 export default function WelcomePage() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const session = useSession();
 
   const [mode, setMode] = useState<Mode>("signin");

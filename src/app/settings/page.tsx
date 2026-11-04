@@ -22,6 +22,7 @@ import { ApiTokenManager } from "@/components/api-token-manager";
 import { UsageDashboard } from "@/components/usage-dashboard";
 import { PlanPanel, UpgradeNotice } from "@/components/plan-panel";
 import { PageScroll } from "@/components/page-scroll";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 function Toggle({
@@ -41,15 +42,17 @@ function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        // Tor 28 px, a niewidoczne pole wokół (`before`) dobija cel dotyku do 44 px.
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']",
         // Włączony = wypełnienie foreground (czarny w jasnym / biały w ciemnym),
-        // kropka to background (biała / czarna). Wyłączony = neutralne tło.
-        checked ? "border-foreground bg-foreground" : "border-transparent bg-secondary"
+        // kropka to background (biała / czarna). Wyłączony = neutralne tło
+        // z obwódką ≥ 3:1, żeby przełącznik było widać także wyłączony.
+        checked ? "border-foreground bg-foreground" : "border-input bg-secondary"
       )}
     >
       <span
         className={cn(
-          "absolute size-5 rounded-full bg-background shadow-md transition-transform",
+          "absolute size-5 rounded-full bg-background shadow-raised transition-transform",
           checked ? "translate-x-6" : "translate-x-1"
         )}
       />
@@ -141,8 +144,19 @@ export default function SettingsPage() {
 
       <section className="space-y-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Animacje
+          Wygląd
         </h2>
+        {/* Motyw ustawia się raz, więc przełącznik mieszka tu, a nie na każdym
+            ekranie. Dopóki go nie ruszysz, motyw idzie za systemem. */}
+        <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">Ciemny motyw</p>
+            <p className="text-sm text-muted-foreground">
+              Spokojniejszy dla oczu wieczorem. Domyślnie zgodny z systemem.
+            </p>
+          </div>
+          <ThemeToggle />
+        </div>
         <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
           <div>
             <p className="text-sm font-medium">Animacje interfejsu</p>

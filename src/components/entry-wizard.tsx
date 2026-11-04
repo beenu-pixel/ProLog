@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useProgressRouter } from "@/lib/nav-progress";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ const TOTAL = METRICS.length + 1; // 5 metryk + ekran notatki
  * lokalnie; zapis dopiero na ostatnim kroku.
  */
 export function EntryWizard() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Partial<Record<MetricKey, Scale>>>({});
   const [title, setTitle] = useState("");

@@ -8,8 +8,9 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { useSignedPhotoUrls } from "@/hooks/use-signed-photo-urls";
 import { uploadPhoto } from "@/lib/photos";
 import type { EntryPhoto } from "@/lib/types";
@@ -136,8 +137,8 @@ export const PhotoField = forwardRef<PhotoFieldHandle, PhotoFieldProps>(
                     className="size-full object-cover"
                   />
                 ) : (
-                  <div className="flex size-full items-center justify-center">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  <div className="flex size-full items-center justify-center text-muted-foreground">
+                    <LoadingDots />
                   </div>
                 )}
                 <button
@@ -162,8 +163,8 @@ export const PhotoField = forwardRef<PhotoFieldHandle, PhotoFieldProps>(
                   alt=""
                   className="size-full object-cover opacity-50"
                 />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="size-5 animate-spin text-foreground" />
+                <div className="absolute inset-0 flex items-center justify-center text-foreground">
+                  <LoadingDots />
                 </div>
               </div>
             ))}

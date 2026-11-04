@@ -31,6 +31,30 @@ export function formatMonthYear(iso: string): string {
   });
 }
 
+/** Pierwsza litera wielka (polskie nazwy dni i miesięcy są małą literą). */
+function capitalize(text: string): string {
+  return text.charAt(0).toLocaleUpperCase("pl-PL") + text.slice(1);
+}
+
+/** Nagłówek dnia, np. „Wtorek, 3 listopada". */
+export function formatDayHeading(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return capitalize(
+    d.toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })
+  );
+}
+
+/** Nagłówek grupy miesiąca na liście, np. „Listopad 2026". */
+export function formatMonthHeading(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return capitalize(d.toLocaleDateString("pl-PL", { month: "long", year: "numeric" }));
+}
+
+/** Skrót dnia tygodnia bez kropki, np. „pon", „śr" — kafelek paska dni. */
+export function formatWeekdayTiny(date: Date | string): string {
+  return formatWeekdayShort(date).replace(".", "");
+}
+
 /** Godzina po polsku, np. „20:00". */
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("pl-PL", {
