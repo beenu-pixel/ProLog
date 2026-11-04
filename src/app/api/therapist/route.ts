@@ -1,9 +1,8 @@
 import { getTherapist } from "@/lib/therapists";
-import { getUserPlan, isPersonaAllowed, ragDepth } from "@/lib/plans";
+import { getUserPlan, isPersonaAllowed } from "@/lib/plans";
 import { authenticateUser, isUserAuthError } from "@/lib/user-auth";
 import { logAiUsage } from "@/lib/services/ai-usage";
-import { hybridSearch } from "@/lib/services/search";
-import { buildJournalContextFromHits } from "@/lib/therapist-context";
+import { loadPersonaJournalContext } from "@/lib/services/persona-journal";
 import {
   enforceRateLimit,
   rateLimitHeaders,
@@ -93,24 +92,25 @@ export async function POST(request: Request): Promise<Response> {
     throw err;
   }
 
-  // RAG: kontekst dziennika budujemy SERWEROWO z wyszukiwania hybrydowego po treści
-  // ostatniej wiadomości użytkownika (najtrafniejsze wpisy + zawsze ostatnie 7 dni).
-  // Gdy wyszukiwanie/embedding padnie (np. brak OPENAI_API_KEY), wracamy do pełnego
-  // kontekstu przysłanego przez klienta — czat działa jak dotąd (degradacja, nie awaria).
+  // Wpisy dla persony budujemy SERWEROWO: gdy pytanie wskazuje datę lub okres
+  // („lipiec 2026", „27–31.07", „wczoraj"), wszystkie wpisy z tego zakresu prosto
+  // z bazy (limit wg planu), a obok wybór z wyszukiwania (najtrafniejsze + ostatnie
+  // dni; głębia wg planu). Gdy nie da się pobrać niczego (np. wyszukiwanie padło
+  // i nie było daty), zostaje pełny dziennik przysłany przez klienta — degradacja,
+  // nie awaria.
   const lastUserText = history[history.length - 1]?.content ?? "";
   let journalContext = body.journalContext ?? "";
   if (lastUserText.trim()) {
     try {
-      // Głębia kontekstu zależy od planu: free = płytki (krótkie okno + mało trafień),
-      // pro/max = pełna pamięć nad całym dziennikiem.
-      const depth = ragDepth(plan);
-      const hits = await hybridSearch(auth.userId, lastUserText, {
-        recentDays: depth.recentDays,
-        limit: depth.limit,
+      const loaded = await loadPersonaJournalContext({
+        userId: auth.userId,
+        plan,
+        messages: history,
       });
-      journalContext = buildJournalContextFromHits(hits);
+      if (loaded) journalContext = loaded;
+      else console.error("[therapist] journal context unavailable — fallback to client context");
     } catch (err) {
-      console.error("[therapist] hybrid search failed — fallback to client context:", err);
+      console.error("[therapist] journal context failed — fallback to client context:", err);
     }
   }
 

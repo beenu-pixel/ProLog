@@ -65,6 +65,21 @@ function warsawWallToUtc(day: string, hour: number, minute: number): Date {
   return new Date(utc);
 }
 
+/** Klucz dnia „YYYY-MM-DD" danego momentu wg czasu polskiego (nie strefy serwera). */
+export function warsawDayKey(iso: string | Date): string {
+  const date = typeof iso === "string" ? new Date(iso) : iso;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(date);
+}
+
+/** Dzień tygodnia po polsku („środa") dla klucza dnia lub momentu, wg czasu polskiego. */
+export function warsawWeekday(dayOrIso: string): string {
+  // Sam klucz dnia czytamy w południe UTC, żeby strefa nie przesunęła go o dzień.
+  const date = isValidDayKey(dayOrIso)
+    ? new Date(`${dayOrIso}T12:00:00.000Z`)
+    : new Date(dayOrIso);
+  return new Intl.DateTimeFormat("pl-PL", { timeZone: TZ, weekday: "long" }).format(date);
+}
+
 /** Dzisiejszy klucz dnia „YYYY-MM-DD" wg czasu polskiego. */
 export function todayWarsaw(): string {
   // en-CA daje format „YYYY-MM-DD".

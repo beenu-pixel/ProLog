@@ -5,6 +5,13 @@ import { backfillEmbeddings, EmbeddingError } from "@/lib/services/embeddings";
 // jeszcze go nie ma. Idempotentny — można uruchamiać wielokrotnie (uzupełnia tylko
 // braki). Dostęp tylko dla właściciela (PROLOG_ADMIN_EMAILS), bo proces dotyka
 // WSZYSTKICH kont (czyta kluczem sekretnym, omijając RLS) i zużywa kredyty OpenAI.
+//
+// Wektory trafiają do `entry_index` (z niej czyta wyszukiwanie). Jedno wywołanie
+// przetwarza najwyżej `?maxPerRun=` braków (domyślnie 500, max 2000) partiami po 64;
+// gdy w odpowiedzi `remaining > 0`, wystarczy wywołać ponownie.
+
+// Partia = jedno żądanie do OpenAI (~1–2 s) + jeden upsert; 500 braków to ~8 partii.
+export const maxDuration = 60;
 
 export async function POST(request: Request): Promise<Response> {
   const auth = await authenticateUser(request);
@@ -15,7 +22,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await backfillEmbeddings();
+    const raw = new URL(request.url).searchParams.get("maxPerRun");
+    const maxPerRun = raw !== null && /^\d+$/.test(raw) ? Number(raw) : undefined;
+    const result = await backfillEmbeddings({ maxPerRun });
     return Response.json(result);
   } catch (err) {
     if (err instanceof EmbeddingError) {

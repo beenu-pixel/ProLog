@@ -128,6 +128,31 @@ export function ragDepth(plan: PlanTier): RagDepth {
     : { recentDays: 30, limit: 30 };
 }
 
+// ── Wpisy z zakresu dat ─────────────────────────────────────────────────────
+
+export interface DateRangeDepth {
+  /** Najdłuższy zakres dni pobierany z bazy (dłuższy przycinamy do jego końca). */
+  maxDays: number;
+  /** Ile wpisów z jednego zakresu trafia do rozmowy (z metrykami). */
+  maxEntries: number;
+  /** Ile z nich dostaje pełną treść; reszta idzie skrótem: data, tytuł, metryki. */
+  fullEntries: number;
+}
+
+/**
+ * Pytanie o konkretny okres („lipiec 2026", „27–31.07", „wczoraj") dociąga
+ * WSZYSTKIE wpisy z tego okresu prosto z bazy — na każdym planie, bo bez tego
+ * persona myli się co do faktów (ile wpisów, czy danego dnia coś było). Plan
+ * decyduje tylko o koszcie: free dostaje jeden miesiąc i krótsze wpisy, pro/max
+ * do roku wstecz. Skróty (tytuł + metryki) są tanie, a wystarczają do liczenia
+ * wpisów i porównywania metryk.
+ */
+export function dateRangeDepth(plan: PlanTier): DateRangeDepth {
+  return plan === "free"
+    ? { maxDays: 31, maxEntries: 31, fullEntries: 10 }
+    : { maxDays: 366, maxEntries: 200, fullEntries: 40 };
+}
+
 // ── Raporty (Faza 2) ─────────────────────────────────────────────────────────
 
 export type ReportsAccess = "none" | "weekly" | "weekly+monthly";

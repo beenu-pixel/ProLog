@@ -109,49 +109,119 @@ function toVectorLiteral(vec: number[]): string {
 
 interface BackfillRow {
   id: string;
+  user_id: string;
   title: string;
-  content: string;
+  content: string | null;
+  created_at: string;
 }
 
 export interface BackfillResult {
+  /** Wpisy przejrzane (wszystkie w zakresie: jedno konto albo wszystkie). */
   scanned: number;
+  /** Wpisy bez wektora w `entry_index` przed tym uruchomieniem. */
+  missing: number;
+  /** Wektory zapisane w tym uruchomieniu. */
   embedded: number;
+  /** Wpisy, których nie udało się zaindeksować (błąd partii lub zapisu). */
   failed: number;
+  /** Braki zostawione na kolejne wywołanie (powyżej `maxPerRun`). */
+  remaining: number;
 }
 
-/**
- * Uzupełnia embeddingi dla wpisów, które jeszcze ich nie mają (`embedding is null`).
- * Idempotentny i powtarzalny: ponowne wywołanie embeduje tylko nowe braki. Przetwarza
- * partiami; błąd jednej partii jest logowany i nie przerywa pozostałych. Wymaga
- * skonfigurowanego klucza sekretnego Supabase. `userId` zawęża do jednego konta
- * (gdy podany), inaczej obejmuje wszystkie konta.
- */
-async function runBackfill(userId?: string): Promise<BackfillResult> {
+export interface BackfillOptions {
+  /** Zawęża do jednego konta. */
+  userId?: string;
+  /** Ile brakujących wpisów przetwarza jedno wywołanie (domyślnie 500, max 2000). */
+  maxPerRun?: number;
+}
+
+/** Stronicowanie PostgREST: serwer oddaje najwyżej 1000 wierszy na zapytanie. */
+const PAGE = 1000;
+const MAX_PER_RUN_DEFAULT = 500;
+const MAX_PER_RUN_CAP = 2000;
+
+function db() {
   if (!supabaseAdmin) {
     throw new EmbeddingError("Brak konfiguracji serwera Supabase.", 503);
   }
+  return supabaseAdmin;
+}
 
-  let query = supabaseAdmin
-    .from("entries")
-    .select("id, title, content")
-    .is("embedding", null)
-    .limit(10000);
-  if (userId) query = query.eq("user_id", userId);
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("[embeddings] select failed:", error);
-    throw new EmbeddingError("Nie udało się pobrać wpisów do embeddowania.", 500);
+/** Wszystkie wpisy (jednego konta albo wszystkich), stronami po `PAGE`. */
+async function listEntriesForBackfill(userId?: string): Promise<BackfillRow[]> {
+  const out: BackfillRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let query = db()
+      .from("entries")
+      .select("id, user_id, title, content, created_at")
+      .order("created_at", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (userId) query = query.eq("user_id", userId);
+    const { data, error } = await query;
+    if (error) {
+      console.error("[embeddings] entries select failed:", error);
+      throw new EmbeddingError("Nie udało się pobrać wpisów do embeddowania.", 500);
+    }
+    const rows = (data ?? []) as BackfillRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
   }
+  return out;
+}
 
-  const rows = (data ?? []) as BackfillRow[];
+/** Id wpisów, które mają już wektor w `entry_index`. */
+async function indexedIds(userId?: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    let query = db()
+      .from("entry_index")
+      .select("local_id")
+      .not("embedding", "is", null)
+      .order("local_id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (userId) query = query.eq("user_id", userId);
+    const { data, error } = await query;
+    if (error) {
+      console.error("[embeddings] entry_index select failed:", error);
+      throw new EmbeddingError("Nie udało się odczytać indeksu wyszukiwania.", 500);
+    }
+    const rows = (data ?? []) as { local_id: string }[];
+    for (const r of rows) ids.add(r.local_id);
+    if (rows.length < PAGE) break;
+  }
+  return ids;
+}
+
+/**
+ * Uzupełnia wektory w `entry_index` — tabeli, z której czyta wyszukiwanie
+ * (RPC `match_entries`). Wcześniej backfill pisał do `entries.embedding`, której
+ * wyszukiwanie już nie używa, więc nie naprawiał braków w indeksie.
+ *
+ * Idempotentny: brak = wpis bez wiersza w indeksie albo z wierszem bez wektora.
+ * Przetwarza partiami po `BATCH_SIZE` (jedno żądanie do OpenAI + jeden upsert
+ * na partię) i najwyżej `maxPerRun` braków na wywołanie; reszta zostaje jako
+ * `remaining` na kolejne wywołanie. Błąd jednej partii jest liczony w `failed`
+ * i nie przerywa pozostałych; brak klucza OpenAI przerywa cały proces.
+ */
+async function runBackfill(options: BackfillOptions = {}): Promise<BackfillResult> {
+  const maxPerRun = Math.min(
+    MAX_PER_RUN_CAP,
+    Math.max(1, Math.trunc(options.maxPerRun ?? MAX_PER_RUN_DEFAULT))
+  );
+
+  const [entries, indexed] = await Promise.all([
+    listEntriesForBackfill(options.userId),
+    indexedIds(options.userId),
+  ]);
+  const missing = entries.filter((e) => !indexed.has(e.id));
+  const todo = missing.slice(0, maxPerRun);
+
   let embedded = 0;
   let failed = 0;
 
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
-    const inputs = batch.map((r) => buildEmbeddingInput(r.title, r.content));
+  for (let i = 0; i < todo.length; i += BATCH_SIZE) {
+    const batch = todo.slice(i, i + BATCH_SIZE);
+    const inputs = batch.map((r) => buildEmbeddingInput(r.title, r.content ?? ""));
 
     let vectors: number[][];
     try {
@@ -164,37 +234,52 @@ async function runBackfill(userId?: string): Promise<BackfillResult> {
       continue;
     }
 
-    for (let j = 0; j < batch.length; j++) {
-      const { error: updateError } = await supabaseAdmin
-        .from("entries")
-        .update({ embedding: toVectorLiteral(vectors[j]) })
-        .eq("id", batch[j].id);
-      if (updateError) {
-        console.error("[embeddings] update failed:", batch[j].id, updateError);
-        failed += 1;
-      } else {
-        embedded += 1;
-      }
+    const now = new Date().toISOString();
+    const { error } = await db()
+      .from("entry_index")
+      .upsert(
+        batch.map((r, j) => ({
+          local_id: r.id,
+          user_id: r.user_id,
+          embedding: toVectorLiteral(vectors[j]),
+          entry_date: r.created_at,
+          updated_at: now,
+        })),
+        { onConflict: "local_id" }
+      );
+    if (error) {
+      console.error("[embeddings] entry_index upsert failed:", error);
+      failed += batch.length;
+    } else {
+      embedded += batch.length;
     }
   }
 
-  return { scanned: rows.length, embedded, failed };
+  return {
+    scanned: entries.length,
+    missing: missing.length,
+    embedded,
+    failed,
+    remaining: missing.length - todo.length,
+  };
 }
 
 /**
- * Backfill embeddingów dla WSZYSTKICH kont (panel admina). Idempotentny.
+ * Backfill wektorów dla WSZYSTKICH kont (panel admina). Idempotentny.
  */
-export async function backfillEmbeddings(): Promise<BackfillResult> {
-  return runBackfill();
+export async function backfillEmbeddings(
+  options: Omit<BackfillOptions, "userId"> = {}
+): Promise<BackfillResult> {
+  return runBackfill(options);
 }
 
 /**
- * Backfill embeddingów tylko dla jednego użytkownika. Używane best-effort przed
- * wyszukiwaniem hybrydowym — wpisy tworzone w UI (mirror localStorage→Supabase) nie
- * dostają embeddingu na bieżąco, więc tu domykamy braki. Gdy brak braków → szybki no-op.
+ * Backfill wektorów tylko dla jednego użytkownika. Gdy brak braków → szybki
+ * no-op (dwa odczyty).
  */
 export async function backfillEmbeddingsForUser(
-  userId: string
+  userId: string,
+  options: Omit<BackfillOptions, "userId"> = {}
 ): Promise<BackfillResult> {
-  return runBackfill(userId);
+  return runBackfill({ ...options, userId });
 }

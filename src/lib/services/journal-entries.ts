@@ -140,6 +140,30 @@ export async function getEntriesByDateRange(
   return (data as EntryRow[]).map(toEntry);
 }
 
+/**
+ * Wpisy z zakresu `startIso <= created_at < endIso` dla rozmowy z personą:
+ * co najwyżej `limit` wpisów (od najstarszego) oraz łączna liczba wpisów w tym
+ * zakresie — po niej persona wie, czy dostała wszystko, czy wynik przycięto.
+ */
+export async function getEntriesInRange(
+  userId: string,
+  startIso: string,
+  endIso: string,
+  limit: number
+): Promise<{ entries: Entry[]; total: number }> {
+  const { data, error, count } = await db()
+    .from("entries")
+    .select(COLUMNS, { count: "exact" })
+    .eq("user_id", userId)
+    .gte("created_at", startIso)
+    .lt("created_at", endIso)
+    .order("created_at", { ascending: true })
+    .limit(Math.max(1, Math.trunc(limit)));
+  if (error) throw new Error(`entries range: ${error.message}`);
+  const entries = (data as EntryRow[]).map(toEntry);
+  return { entries, total: count ?? entries.length };
+}
+
 /** Pobiera wpisy po zbiorze `id` (dla RAG — treść do kontekstu). */
 export async function getEntriesByLocalIds(userId: string, localIds: string[]): Promise<Entry[]> {
   if (localIds.length === 0) return [];

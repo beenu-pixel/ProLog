@@ -2,11 +2,13 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidDayKey, todayWarsaw } from "@/lib/api-day";
 import { listEntriesByUser } from "@/lib/services/journal-entries";
 import { ApiError } from "@/lib/api-error";
-import { buildJournalContext, buildJournalContextFromHits } from "@/lib/therapist-context";
+import { buildJournalContext } from "@/lib/therapist-context";
 import { FREUD } from "@/lib/therapists";
 import { askXai, XaiError, type ChatMessage } from "@/lib/xai";
 import { logAiUsage } from "@/lib/services/ai-usage";
-import { hybridSearch } from "@/lib/services/search";
+import { loadPersonaJournalContext } from "@/lib/services/persona-journal";
+import { getUserPlan } from "@/lib/plans";
+import type { DayRange } from "@/lib/date-range-pl";
 import { formatWeekday } from "@/lib/format";
 
 const MODEL = "grok-4.3";
@@ -19,7 +21,7 @@ const MODEL = "grok-4.3";
 /** Krótka nota „skupienia": na którym dniu (i ewentualnie okresie) się koncentrujemy. */
 function buildFocusNote(day: string, from?: string, to?: string): string {
   const lines = [
-    "KONTEKST PYTANIA (z zewnętrznego API):",
+    "SKUPIENIE PYTANIA (z zewnętrznego API):",
     `Dzień, na którym skupia się użytkownik: ${day} (${formatWeekday(day)}).`,
     `Data dzisiejsza: ${todayWarsaw()}.`,
   ];
@@ -66,15 +68,30 @@ export async function askAgent(
   const from = input.from as string | undefined;
   const to = input.to as string | undefined;
 
-  // RAG: kontekst z wyszukiwania hybrydowego po treści pytania (najtrafniejsze
-  // wpisy + zawsze ostatnie 7 dni). Gdy wyszukiwanie/embedding padnie (np. brak
-  // OPENAI_API_KEY), degradujemy do pełnego dziennika — REST/MCP nie może paść.
-  let journalContext: string;
+  // Wpisy jak w czacie: zakresy dat z pytania i z pól `day`/`from`/`to` prosto
+  // z bazy + wybór z wyszukiwania. Gdy nic się nie uda (np. brak OPENAI_API_KEY
+  // i brak daty), degradujemy do pełnego dziennika — REST/MCP nie może paść.
+  const extraRanges: DayRange[] = [];
+  if (input.day !== undefined) extraRanges.push({ from: day, to: day });
+  // Sam `to` nie wyznacza początku okresu, więc wtedy zostaje wyszukiwanie.
+  if (from) {
+    const end = to ?? todayWarsaw();
+    extraRanges.push(from <= end ? { from, to: end } : { from: end, to: from });
+  }
+  let journalContext: string | null = null;
   try {
-    const hits = await hybridSearch(userId, question, { recentDays: 7 });
-    journalContext = buildJournalContextFromHits(hits);
+    const plan = await getUserPlan(userId);
+    journalContext = await loadPersonaJournalContext({
+      userId,
+      plan,
+      messages: [{ role: "user", content: question }],
+      extraRanges,
+    });
   } catch (err) {
-    console.error("[services/agent] hybrid search failed — fallback to full journal:", err);
+    console.error("[services/agent] journal context failed:", err);
+  }
+  if (journalContext === null) {
+    console.error("[services/agent] journal context unavailable — fallback to full journal");
     try {
       const entries = await listEntriesByUser(userId);
       journalContext = buildJournalContext(entries);
