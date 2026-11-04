@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-import { AppHeader } from "@/components/app-header";
+import { AppSidebar } from "@/components/app-sidebar";
 import { BottomBar } from "@/components/bottom-bar";
 import { SyncNotice } from "@/components/sync-notice";
 import { WindowScroll } from "@/components/window-scroll";
@@ -11,24 +11,23 @@ import { useAnimationsEnabled } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
- * Powłoka aplikacji (nagłówek + treść + pływające paski). Na desktopie blokujemy
- * wysokość do ekranu i chowamy przewijanie strony TYLKO w dzienniku (`/entries`),
- * gdzie obowiązuje dwupanelowy master-detail z własnym przewijaniem paneli. Na
- * pozostałych trasach (Ustawienia, Statystyki, …) zostawiamy normalny scroll
- * strony, bo ich treść może być wyższa niż ekran.
+ * Powłoka aplikacji. Jedna nawigacja na ekran: na telefonie dolny pasek
+ * (`BottomBar`), na komputerze pasek boczny (`AppSidebar`). Bez górnego paska —
+ * każdy ekran ma własny tytuł, więc nic nie wisi nad treścią.
+ *
+ * Na komputerze blokujemy wysokość do ekranu i chowamy przewijanie strony na
+ * trasach, które przewijają się WEWNĄTRZ (dziennik z listą i czytnikiem, a także
+ * Ustawienia i Statystyki opakowane w <PageScroll>). Pozostałe trasy przewija
+ * okno.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // Trasy z dwupanelowym/„pełnoekranowym" układem, które przewijają się WEWNĄTRZ
-  // (własnym animowanym paskiem), a nie scrollem strony: dziennik oraz Ustawienia
-  // i Statystyki (tam treść opakowana w <PageScroll>).
   const locked =
     pathname.startsWith("/entries") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/stats");
 
-  // Landing (`/`) ma własny pełny układ (nagłówek + stopkę) i nie korzysta z
-  // pływającego dolnego paska — nie rezerwujemy więc dołu na pasek.
+  // Landing (`/`) ma własny pełny układ (nagłówek + stopkę) — bez dolnego paska.
   const bare = pathname === "/";
 
   // Globalny wyłącznik animacji: klasa na <html> (obejmuje też portale, np. menu
@@ -41,29 +40,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col",
+        "flex min-h-dvh flex-col lg:flex-row",
         locked && "lg:h-dvh lg:overflow-hidden"
       )}
     >
-      <AppHeader />
-      {!bare && <SyncNotice />}
-      {/* Mobile: dół rezerwuje dokładnie tyle, ile zajmuje dolny obszar (zmierzone
-          w BottomBar jako --bottom-nav-h, razem z safe-area i wysokością pola) + 1rem
-          oddechu, żeby koniec treści dało się przewinąć nad niego. Fallback = pb-40.
-          Desktop: na zablokowanych trasach treść przewija się WEWNĄTRZ i ma
-          wypełniać cały ekran (także pod pływającym kompozytorem z efektem
-          glass), więc NIE rezerwujemy tu dołu (lg:pb-0) — prześwit pod pasek
-          dodają same sekcje w przewijanej treści. Trasy bez własnego
-          przewijania trzymają klasyczny odstęp lg:pb-28. */}
-      <main
-        className={cn(
-          "flex w-full flex-1 flex-col",
-          bare ? "pb-0" : "pb-[calc(var(--bottom-nav-h,9rem)+1rem)]",
-          locked ? "lg:min-h-0 lg:overflow-hidden lg:pb-0" : !bare && "lg:pb-28"
-        )}
-      >
-        {children}
-      </main>
+      <AppSidebar />
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+        {!bare && <SyncNotice />}
+        {/* Dół rezerwuje dokładnie tyle, ile zajmuje dolny obszar (zmierzone w
+            BottomBar jako --bottom-nav-h, razem z safe-area) + 1rem oddechu,
+            żeby koniec treści dało się przewinąć nad niego. Na komputerze dolny
+            obszar istnieje tylko w rozmowie (pole pisania), więc bez niego
+            rezerwa wynosi zero. */}
+        <main
+          className={cn(
+            "flex w-full flex-1 flex-col",
+            bare
+              ? "pb-0"
+              : "pb-[calc(var(--bottom-nav-h,9rem)+1rem)] lg:pb-[calc(var(--bottom-nav-h,0rem)+1rem)]",
+            locked && "lg:min-h-0 lg:overflow-hidden lg:pb-0"
+          )}
+        >
+          {children}
+        </main>
+      </div>
       <BottomBar />
       {/* Trasy przewijane oknem (np. /docs) dostają ten sam animowany pasek co
           panele z własnym scrollem — zamiast natywnego paska przeglądarki. */}

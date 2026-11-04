@@ -17,12 +17,12 @@ import { TherapistSwitcher } from "@/components/therapist-switcher";
 import { LoadingText } from "@/components/ui/loading-dots";
 
 /**
- * Pełnoekranowa rozmowa z terapeutą — treść trasy `/chat` (zakładka „Freud" na
- * mobilnym pasku). Lista wiadomości przewija się scrollem strony; polem wejścia
- * jest globalny kompozytor (`BottomBar` przełącza go tu w tryb czatu) — dzięki
- * temu w aplikacji jest jedno pole tekstowe, a jego znaczenie wynika z miejsca.
- * Na desktopie widok renderuje się jako wycentrowana kolumna (główną ścieżką
- * pozostaje pływający panel przy kompozytorze).
+ * Pełnoekranowa rozmowa z terapeutą — treść trasy `/chat` (zakładka „Rozmowa”
+ * na dolnym pasku, pozycja w pasku bocznym na komputerze). Lista wiadomości
+ * przewija się scrollem strony; polem wejścia jest wspólne pole pisania
+ * (`BottomBar` przełącza je tu w tryb rozmowy) — dzięki temu w aplikacji jest
+ * jedno pole tekstowe, a jego znaczenie wynika z miejsca. Na komputerze widok
+ * to wycentrowana kolumna z polem zadokowanym pod nią.
  *
  * Pełnoekranowy czat NIE ma dolnego paska zakładek (byłby migoczącym chrome na
  * ekranie „w skupieniu" — decyzja UX). Wyjście jest jawne i zawsze widoczne:
@@ -37,7 +37,7 @@ export function ChatScreen() {
   const { messages, status, historyLoading } = useTherapistChat();
   const endRef = useRef<HTMLDivElement>(null);
 
-  // Historia rozmowy — bez otwierania desktopowego panelu (osobny stan `open`).
+  // Historia rozmowy.
   useEffect(() => {
     void loadChat();
   }, []);
@@ -73,7 +73,7 @@ export function ChatScreen() {
           person), trwałe wyjście „Wróć" maksymalnie po prawej (bez dolnego paska
           zakładek to jedyne jawne wyjście poza systemowym „wstecz"). Oba w
           zasięgu kciuka na tej samej wysokości. */}
-      <div className="sticky top-14 z-30 -mx-6 flex items-center gap-2 bg-background/95 px-6 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky top-0 z-30 -mx-6 flex items-center gap-2 bg-background px-6 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
         {!gate && <TherapistSwitcher variant="title" placement="down" />}
         <Link
           href="/entries"

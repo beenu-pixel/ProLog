@@ -2,14 +2,32 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatDate,
+  formatDayHeading,
   formatDayNumber,
+  formatMonthHeading,
   formatMonthYear,
   formatWeekday,
+  formatWeekdayTiny,
   toExcerpt,
 } from "@/lib/format";
 
 // Godzina w datach jest celowo bez „Z", żeby getDate()/toLocaleDateString
 // liczyły w lokalnej strefie i nie przesuwały dnia.
+const TUESDAY_NOV_3 = "2026-11-03T20:00:00";
+
+describe("nagłówki dnia i miesiąca", () => {
+  it("formatDayHeading zaczyna wielką literą i odmienia miesiąc", () => {
+    expect(formatDayHeading(TUESDAY_NOV_3)).toBe("Wtorek, 3 listopada");
+  });
+
+  it("formatMonthHeading podaje miesiąc w mianowniku z rokiem", () => {
+    expect(formatMonthHeading(TUESDAY_NOV_3)).toBe("Listopad 2026");
+  });
+
+  it("formatWeekdayTiny skraca dzień tygodnia bez kropki", () => {
+    expect(formatWeekdayTiny(TUESDAY_NOV_3)).toBe("wt");
+  });
+});
 const TUESDAY_JUNE_2 = "2026-06-02T20:00:00";
 const MAY_28 = "2026-05-28T20:00:00";
 

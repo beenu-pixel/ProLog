@@ -11,8 +11,10 @@ export const MOOD_LABELS: Record<Scale, string> = {
 
 export interface MetricDef {
   key: MetricKey;
-  /** Krótka nazwa (np. na liście metryk w szczególe). */
+  /** Nazwa metryki (np. na liście metryk w szczególe). */
   label: string;
+  /** Najkrótsza nazwa — do zwartego „pulsu dnia” w pięciu kolumnach. */
+  short: string;
   /** Pytanie-nagłówek na ekranie kreatora. */
   prompt: string;
   /** Etykiety słowne poziomów 1..5. */
@@ -29,18 +31,21 @@ export const METRICS: MetricDef[] = [
   {
     key: "sleep",
     label: "Jakość snu",
+    short: "Sen",
     prompt: "Jak Ci się spało?",
     levels: ["Bardzo źle", "Słabo", "Średnio", "Dobrze", "Świetnie"],
   },
   {
     key: "energy",
     label: "Energia",
+    short: "Energia",
     prompt: "Ile masz dziś energii?",
     levels: ["Brak", "Mało", "Średnio", "Dużo", "Pełnia"],
   },
   {
     key: "mood",
     label: "Samopoczucie",
+    short: "Nastrój",
     prompt: "Jak się dziś czujesz?",
     levels: [
       MOOD_LABELS[1],
@@ -53,12 +58,14 @@ export const METRICS: MetricDef[] = [
   {
     key: "productivity",
     label: "Produktywność",
+    short: "Zrobione",
     prompt: "Ile udało się dziś zrobić?",
     levels: ["Nic", "Mało", "Średnio", "Dużo", "Bardzo dużo"],
   },
   {
     key: "stress",
     label: "Poziom stresu",
+    short: "Stres",
     prompt: "Jak duży masz dziś stres?",
     levels: ["Spokój", "Lekki", "Średni", "Duży", "Silny"],
     inverted: true,
@@ -77,6 +84,14 @@ export const METRIC_BY_KEY = METRICS.reduce(
 /** Etykieta słowna danej wartości metryki (np. „Dobrze"). */
 export function metricLevelLabel(key: MetricKey, value: Scale): string {
   return METRIC_BY_KEY[key].levels[value - 1];
+}
+
+/**
+ * Czy wartość metryki zasługuje na uwagę (dane mówią kierunkiem): zwykła
+ * metryka na dole skali (1–2), odwrócona — stres — na górze (4–5).
+ */
+export function needsAttention(key: MetricKey, value: Scale): boolean {
+  return METRIC_BY_KEY[key].inverted ? value >= 4 : value <= 2;
 }
 
 /**

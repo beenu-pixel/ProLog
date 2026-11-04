@@ -1,19 +1,33 @@
-import { BookOpen } from "lucide-react";
+"use client";
+
+import { useMemo, useState } from "react";
+
+import { DayContent } from "@/components/day-content";
+import { useEntries } from "@/hooks/use-entries";
+import { useHydrated } from "@/hooks/use-hydrated";
+import { useEntriesSyncing } from "@/lib/auth";
+import { dayKey } from "@/lib/format";
 
 /**
- * Prawy panel widoku dziennika, gdy żaden wpis nie jest wybrany. Na mobile ten
- * ekran jest ukryty przez layout (widać samą listę); na desktopie to pusty stan
- * obok stałej listy po lewej.
+ * Prawy panel Dziennika na komputerze, gdy żaden wpis nie jest wybrany: dzisiejszy
+ * dzień — jego wpisy albo zaproszenie do pisania. Na telefonie ten panel jest
+ * ukryty przez layout (widok dnia ma własny pasek dni).
  */
 export default function EntriesIndexPage() {
+  const entries = useEntries();
+  const ready = useHydrated();
+  const syncing = useEntriesSyncing();
+  const [today] = useState(() => new Date());
+
+  const todayKey = dayKey(today);
+  const todays = useMemo(
+    () => entries.filter((entry) => dayKey(entry.createdAt) === todayKey),
+    [entries, todayKey]
+  );
+
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-      <div className="flex size-16 items-center justify-center rounded-full bg-accent">
-        <BookOpen className="size-7 text-muted-foreground" />
-      </div>
-      <p className="mt-4 text-sm text-muted-foreground">
-        Wybierz wpis z listy, aby zobaczyć szczegóły.
-      </p>
+    <div className="mx-auto w-full max-w-3xl duration-(--duration-fast) ease-out animate-in fade-in motion-reduce:animate-none">
+      <DayContent date={today} entries={todays} ready={ready} syncing={syncing} />
     </div>
   );
 }

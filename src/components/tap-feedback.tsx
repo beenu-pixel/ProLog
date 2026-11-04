@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { tapHaptic } from "@/lib/haptics";
+import {
+  endNavigation,
+  startNavigation,
+  useNavigationFrom,
+} from "@/lib/nav-progress";
 
 /** Wszystko, co użytkownik odbiera jako „do stuknięcia". Pola tekstowe i suwaki celowo poza listą. */
 const TAP_TARGET = [
@@ -53,14 +58,19 @@ function startsInternalNavigation(e: MouseEvent): boolean {
  * postępu. Globalne nasłuchy zamiast `:active`, bo Safari stosuje `:active` tylko
  * przy własnych nasłuchach dotyku, a szybkie stuknięcie gasi je, zanim je widać.
  * Mysz zachowuje dotychczasowe stany `hover`.
+ *
+ * Pasek postępu zapalają też przejścia z kodu (`useProgressRouter`), np. po
+ * zapisie wpisu — stan żyje we wspólnym storze `nav-progress`.
  */
 export function TapFeedback() {
   const pathname = usePathname();
-  const [navFrom, setNavFrom] = useState<string | null>(null);
+  const navFrom = useNavigationFrom();
+  const navigating = navFrom !== null && navFrom === pathname;
 
-  // Zmiana ścieżki kończy ładowanie. Korekta stanu w renderze, jak zaleca React.
-  if (navFrom !== null && navFrom !== pathname) setNavFrom(null);
-  const navigating = navFrom !== null;
+  // Zmiana ścieżki kończy ładowanie.
+  useEffect(() => {
+    if (navFrom !== null && navFrom !== pathname) endNavigation();
+  }, [navFrom, pathname]);
 
   useEffect(() => {
     let pressed: HTMLElement | null = null;
@@ -116,13 +126,13 @@ export function TapFeedback() {
     const onClick = (e: MouseEvent) => {
       if (touchClick && e.isTrusted && findTapTarget(e.target)) tapHaptic();
       touchClick = false;
-      if (startsInternalNavigation(e)) setNavFrom(window.location.pathname);
+      if (startsInternalNavigation(e)) startNavigation();
     };
 
     // Strona przywrócona z bfcache wraca razem ze stanem z chwili wyjścia.
     const onPageShow = () => {
       cancel();
-      setNavFrom(null);
+      endNavigation();
       document
         .querySelectorAll("[data-pressed]")
         .forEach((el) => el.removeAttribute("data-pressed"));
@@ -148,7 +158,7 @@ export function TapFeedback() {
 
   useEffect(() => {
     if (!navigating) return;
-    const timer = window.setTimeout(() => setNavFrom(null), NAV_TIMEOUT_MS);
+    const timer = window.setTimeout(endNavigation, NAV_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [navigating]);
 

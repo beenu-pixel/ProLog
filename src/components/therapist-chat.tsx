@@ -1,92 +1,16 @@
 "use client";
 
-import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { CustomScroll } from "@/components/custom-scroll";
 import { type Therapist } from "@/lib/therapists";
-import { useActiveTherapist } from "@/lib/active-therapist";
-import { setOpen, useTherapistChat } from "@/lib/therapist-chat-store";
-import { TherapistSwitcher } from "@/components/therapist-switcher";
-import { LoadingText } from "@/components/ui/loading-dots";
-import { useTherapistConsent } from "@/lib/therapist-prefs";
 import type { ChatMessage } from "@/lib/therapist-store";
 
-/**
- * Rozwijane okno rozmowy z cyfrowym terapeutą (Freud). Renderowane przez
- * `ComposerBar` tuż nad paskiem, gdy panel jest otwarty. Pole tekstu i mikrofon
- * pozostają w `ComposerBar` poniżej — tutaj jest sama rozmowa.
- */
-export function TherapistChat({ closing = false }: { closing?: boolean }) {
-  const { messages, status, historyLoading } = useTherapistChat();
-  const active = useActiveTherapist();
-  const [consent, setConsent] = useTherapistConsent();
-  const scrollRef = useRef<HTMLDivElement>(null);
+// Elementy rozmowy z cyfrowym terapeutą wspólne dla ekranu `/chat`
+// (`ChatScreen`): zgoda na wysyłanie wpisów i dymki wiadomości. Rozmowa jest
+// ekranem (pasek boczny → „Rozmowa”), a nie pływającym panelem nad polem.
 
-  // Auto-scroll na dół przy nowych wiadomościach / strumieniu.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, status, consent]);
-
-  return (
-    <div
-      className={cn(
-        "flex max-h-[60vh] w-full flex-col overflow-hidden rounded-3xl border bg-background/95 shadow-xl backdrop-blur ease-out supports-[backdrop-filter]:bg-background/80 motion-reduce:animate-none",
-        closing
-          ? "duration-200 animate-out fade-out slide-out-to-bottom-4"
-          : "duration-300 animate-in fade-in slide-in-from-bottom-4"
-      )}
-    >
-
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        {/* Wybór persony w lewym górnym rogu (jak /chat i mobilka). Lista przez
-            portal, bo panel ma `overflow-hidden`, który by ją przyciął. */}
-        <TherapistSwitcher variant="title" placement="down" portal />
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Zwiń rozmowę"
-          className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
-      </header>
-
-      {!consent ? (
-        <ConsentGate therapist={active} onAccept={() => setConsent(true)} />
-      ) : (
-        <CustomScroll
-          innerRef={scrollRef}
-          contentClassName="max-h-[50vh] min-h-[7rem] px-4 py-4"
-          thumbRight={6}
-        >
-          <div className="min-h-full space-y-3">
-            {/* Stała wiadomość powitalna (UI-only — nie idzie do modelu). */}
-            <Bubble
-              message={{
-                id: "__greeting__",
-                role: "assistant",
-                content: active.greeting,
-                createdAt: "",
-              }}
-            />
-            {historyLoading && messages.length === 0 && (
-              <LoadingText className="py-2">Wczytuję rozmowę</LoadingText>
-            )}
-            {messages.map((message) => (
-              <Bubble key={message.id} message={message} />
-            ))}
-          </div>
-        </CustomScroll>
-      )}
-    </div>
-  );
-}
-
-/** Jednorazowa zgoda na wysyłanie wpisów do modelu AI. Współdzielona z
- *  pełnoekranowym widokiem `/chat` (`ChatScreen`). */
+/** Jednorazowa zgoda na wysyłanie wpisów do modelu AI. */
 export function ConsentGate({
   therapist,
   onAccept,
@@ -106,7 +30,7 @@ export function ConsentGate({
       <button
         type="button"
         onClick={onAccept}
-        className="w-full rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.02] active:scale-95"
+        className="w-full rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         Rozumiem, zaczynamy
       </button>
@@ -114,8 +38,7 @@ export function ConsentGate({
   );
 }
 
-/** Pojedynczy dymek. Asystent: lekki markdown; pusty + streaming → kropki.
- *  Współdzielony z pełnoekranowym widokiem `/chat` (`ChatScreen`). */
+/** Pojedynczy dymek. Asystent: lekki markdown; pusty + streaming → kropki. */
 export function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const empty = message.content.length === 0;

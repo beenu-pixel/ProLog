@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useProgressRouter } from "@/lib/nav-progress";
 
 import { useSession } from "@/lib/auth";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -14,7 +14,7 @@ import { consumePricingOnboarding } from "@/lib/welcome";
  * z OAuth na `/`) trafia raz na cennik. Komponent nic nie renderuje.
  */
 export function SessionRedirect() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const ready = useHydrated();
   const session = useSession();
 

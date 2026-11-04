@@ -3,8 +3,9 @@
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Italic, List, ListOrdered, Loader2, Mic, RotateCw } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Mic, RotateCw } from "lucide-react";
 
+import { LoadingDots } from "@/components/ui/loading-dots";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/auth";
 import { useTranscription } from "@/hooks/use-transcription";
@@ -90,12 +91,11 @@ function DictateButton({ editor }: { editor: Editor }) {
             "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
         )}
       >
-        {transcribing ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
+        {!transcribing && (
           <Mic className={cn("size-4", listening && "animate-pulse")} />
         )}
-        <span>{transcribing ? "Transkrypcja…" : "Dyktuj"}</span>
+        <span>{transcribing ? "Przepisuję" : "Dyktuj"}</span>
+        {transcribing && <LoadingDots />}
       </button>
 
       {/* Po błędzie sieci/serwera: nagranie jest zachowane, można ponowić bez

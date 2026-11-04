@@ -5,11 +5,35 @@ import {
   daysInRange,
   entriesInRange,
   groupByDay,
+  groupByMonth,
   tileLevel,
   viewRange,
 } from "@/lib/stats";
 import { dayKey } from "@/lib/format";
 import type { Entry } from "@/lib/types";
+
+describe("groupByMonth", () => {
+  const entry = (date: Date): Entry => ({
+    id: date.toISOString(),
+    title: "t",
+    content: "",
+    createdAt: date.toISOString(),
+  });
+
+  it("dzieli kolejne wpisy na miesiące, zachowując kolejność", () => {
+    const nov2 = entry(new Date(2026, 10, 2, 20));
+    const nov1 = entry(new Date(2026, 10, 1, 20));
+    const oct31 = entry(new Date(2026, 9, 31, 20));
+    const groups = groupByMonth([nov2, nov1, oct31]);
+    expect(groups.map((g) => g.key)).toEqual(["2026-11", "2026-10"]);
+    expect(groups[0].entries).toEqual([nov2, nov1]);
+    expect(groups[1].firstCreatedAt).toBe(oct31.createdAt);
+  });
+
+  it("pusta lista daje brak grup", () => {
+    expect(groupByMonth([])).toEqual([]);
+  });
+});
 
 function at(date: Date, partial: Partial<Entry> = {}): Entry {
   return {

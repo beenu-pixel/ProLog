@@ -89,15 +89,15 @@ export default function EntriesLayout({
   }, []);
 
   return (
-    <div className="flex w-full flex-1 lg:min-h-0 lg:gap-10">
-      {/* Desktop: regulowana lista (master). Na mobile listę zastępuje widok dnia. */}
+    <div className="flex w-full flex-1 lg:min-h-0">
+      {/* Desktop: regulowana lista (master). Na mobile listę zastępuje widok dnia.
+          Wysokość daje powłoka (ekran bez paska u góry), lista przewija się
+          wewnątrz. */}
       <aside
         style={{ width: effectiveWidth }}
-        className={cn(
-          "relative hidden lg:block lg:shrink-0 lg:border-r lg:pt-6 lg:pl-8 lg:pr-8",
-          "lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)]",
-          dragWidth === null && "lg:transition-[width] lg:duration-200"
-        )}
+        // Bez animacji szerokości: to właściwość układu (przelicza całą stronę),
+        // a zmiana z klawiatury czy dwuklikiem ma być natychmiastowa.
+        className="relative hidden lg:block lg:shrink-0 lg:border-r lg:px-4 lg:pt-6"
       >
         <EntryList />
 
@@ -141,14 +141,14 @@ export default function EntriesLayout({
 
       {/* Mobile: widok dnia (pasek dni + treść) na bazowej trasie /entries. */}
       {!isDetail && (
-        <div className="flex w-full flex-1 flex-col px-6 py-6 lg:hidden">
+        <div className="flex w-full flex-1 flex-col px-4 pb-6 lg:hidden">
           <MobileDayView />
         </div>
       )}
 
       <section
         className={cn(
-          "min-w-0 flex-1 px-6 py-6 lg:min-h-0 lg:overflow-y-auto lg:pt-8 lg:pb-28 lg:pr-10",
+          "min-w-0 flex-1 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 lg:min-h-0 lg:overflow-y-auto lg:px-10 lg:pt-8 lg:pb-16",
           isDetail ? "block" : "hidden lg:block"
         )}
       >

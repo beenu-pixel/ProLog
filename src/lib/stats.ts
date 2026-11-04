@@ -4,6 +4,30 @@ import { addDays, dayKey, isSameDay, startOfWeek } from "@/lib/format";
 
 export type StatsView = "week" | "month";
 
+export interface MonthGroup {
+  /** Klucz „YYYY-MM". */
+  key: string;
+  /** Pierwszy wpis grupy — z niego nagłówek miesiąca. */
+  firstCreatedAt: string;
+  entries: Entry[];
+}
+
+/**
+ * Dzieli listę wpisów na kolejne miesiące, zachowując kolejność wejścia (lista
+ * jest już ułożona od najnowszych). Wpisy z tego samego miesiąca rozdzielone
+ * innym miesiącem tworzą osobne grupy — tak jak widać je na liście.
+ */
+export function groupByMonth(entries: Entry[]): MonthGroup[] {
+  const groups: MonthGroup[] = [];
+  for (const entry of entries) {
+    const key = dayKey(entry.createdAt).slice(0, 7);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.entries.push(entry);
+    else groups.push({ key, firstCreatedAt: entry.createdAt, entries: [entry] });
+  }
+  return groups;
+}
+
 /** Grupuje wpisy po dniu (klucz „YYYY-MM-DD"). */
 export function groupByDay(entries: Entry[]): Map<string, Entry[]> {
   const map = new Map<string, Entry[]>();

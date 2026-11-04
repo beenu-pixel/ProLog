@@ -25,12 +25,12 @@ export function SyncNotice() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 pt-4">
+    <div className="mx-auto w-full max-w-2xl px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:px-10 lg:pt-6">
       <div
         role="status"
-        className="flex items-center justify-between gap-3 rounded-xl border p-3"
+        className="flex items-center justify-between gap-4 rounded-lg border bg-card py-2 pr-2 pl-4"
       >
-        <p className="text-sm">
+        <p className="text-ui">
           {issue === "pull"
             ? "Nie udało się pobrać wpisów z chmury. Lista może być niepełna."
             : "Wpis jest na tym urządzeniu, ale nie dotarł do chmury."}

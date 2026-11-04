@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
 
@@ -13,12 +14,15 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import { useAiLimit, noteFromHeaders } from "@/hooks/use-ai-limits";
 import { useEntriesSyncing, useSession, getAccessToken } from "@/lib/auth";
 import { searchEntries } from "@/lib/search";
+import { groupByMonth } from "@/lib/stats";
+import { dayKey, formatDayNumber, formatMonthHeading } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Entry } from "@/lib/types";
 
-// Maska wytapiająca górną i dolną krawędź listy (krótko i subtelnie).
+// Dół listy wytapia się krótko, żeby było widać, że jest więcej wpisów. Góra
+// zostaje ostra — przyklejają się do niej nagłówki miesięcy.
 const ENTRY_LIST_MASK =
-  "linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 44px), transparent 100%)";
+  "linear-gradient(to bottom, #000 calc(100% - 40px), transparent 100%)";
 
 /** Źródło wpisu w wynikach hybrydowych (lustro `SearchSource` z serwisu). */
 type SearchSource = "search" | "recent" | "both";
@@ -28,9 +32,10 @@ interface SearchHit {
 }
 
 /**
- * Lewy panel (lista/kalendarz wpisów) w stylu Stoic: nagłówek z wyszukiwarką
- * i przyciskiem dodawania oraz przewijalna lista wpisów. Na desktopie pełni rolę
- * stałej kolumny master w układzie master-detail; na mobile jest pełnym ekranem.
+ * Lewa kolumna Dziennika na komputerze: tytuł, wyszukiwarka i lista wpisów
+ * pogrupowana po miesiącach. Na górze zawsze „Dziś” — gdy dzisiejszego wpisu
+ * jeszcze nie ma, wiersz zaprasza do pisania (prowadzi do panelu dnia).
+ * Dodawanie wpisu ma jedną afordancję w pasku bocznym („Nowy wpis”).
  *
  * Dwa tryby wyszukiwania: lokalny (filtr localStorage przez `entryMatches`, dla
  * każdego) oraz inteligentny/hybrydowy (wektor + full-text + kontekst 7 dni przez
@@ -107,25 +112,28 @@ export function EntryList() {
     };
   }, [smartActive, trimmed]);
 
+  // Dziś bez wpisu → wiersz-zaproszenie nad listą (z filtrem wyszukiwania znika).
+  const todayKey = dayKey(new Date());
+  const hasToday = entries.some((entry) => dayKey(entry.createdAt) === todayKey);
+  const showTodayRow = ready && !trimmed && !hasToday && !(syncing && entries.length === 0);
+  const groups = useMemo(() => groupByMonth(filtered), [filtered]);
+
   return (
     <div className="flex h-full flex-col">
-      <div className="space-y-4 pb-2">
-        {/* Dodawanie wpisu ma jedną afordancję: przycisk „Nowy wpis" w nagłówku
-            aplikacji (desktop) / zakładkę na dolnym pasku (mobile). */}
-        <h1 className="text-2xl font-semibold tracking-tight">Dziennik</h1>
+      <div className="space-y-4 px-1 pb-3">
+        <h1 className="text-title font-semibold">Dziennik</h1>
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle-foreground"
+              aria-hidden
+            />
             <Input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                smart
-                  ? "Zapytaj po znaczeniu lub o ostatnie dni…"
-                  : "Szukaj po tytule lub dacie…"
-              }
+              placeholder={smart ? "Szukaj po znaczeniu…" : "Szukaj we wpisach…"}
               aria-label="Szukaj wpisów"
               className="pl-9"
             />
@@ -148,23 +156,23 @@ export function EntryList() {
                     : "Włącz inteligentne wyszukiwanie (znaczenie + ostatnie 7 dni)"
               }
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors",
+                "flex size-10 shrink-0 items-center justify-center rounded-full border border-input transition-colors",
                 searchLimit.blocked && "cursor-not-allowed opacity-50",
                 smart
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
-              <Sparkles className="size-4" />
+              <Sparkles className="size-4" aria-hidden />
             </button>
           )}
         </div>
 
         {/* Ostrzeżenie o zbliżającym się / wyczerpanym dziennym limicie wyszukiwań. */}
         {loggedIn && smart && (searchLimit.blocked || searchLimit.nearLimit) && (
-          <p className="px-1 text-xs text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             {searchLimit.blocked
-              ? "Dzienny limit inteligentnego wyszukiwania wykorzystany — odnowi się o północy."
+              ? "Dzienny limit inteligentnego wyszukiwania wykorzystany — odnowi się o północy."
               : `Zostało ${searchLimit.remaining} wyszukiwań na dziś.`}
           </p>
         )}
@@ -172,9 +180,7 @@ export function EntryList() {
 
       <CustomScroll
         className="-mx-3 min-h-0 flex-1"
-        contentClassName="h-full px-3 pt-2 pb-6"
-        // Subtelny, krótki fade krawędzi: u góry króciutko (14 px), u dołu nieco
-        // dłużej (44 px), żeby wpisy znikały stopniowo zamiast urywać się ostro.
+        contentClassName="h-full px-3 pb-8"
         contentStyle={{
           WebkitMaskImage: ENTRY_LIST_MASK,
           maskImage: ENTRY_LIST_MASK,
@@ -183,19 +189,15 @@ export function EntryList() {
         {!ready ? null : smartActive ? (
           // Puste poprzednie wyniki nie mogą mówić „Brak dopasowań" o nowym zapytaniu.
           searching && !hits?.length ? (
-            <LoadingText className="px-3 py-12">Szukam</LoadingText>
+            <LoadingText className="justify-start px-3 py-4">Szukam</LoadingText>
           ) : searchError ? (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Wyszukiwanie chwilowo niedostępne. Spróbuj ponownie.
-            </p>
+            <ListNote>Wyszukiwanie chwilowo niedostępne. Spróbuj ponownie.</ListNote>
           ) : hits && hits.length === 0 ? (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Brak dopasowań do „{trimmed}”.
-            </p>
+            <ListNote>Brak dopasowań do „{trimmed}”.</ListNote>
           ) : (
             <>
               {searching && (
-                <LoadingText className="pb-3">Szukam</LoadingText>
+                <LoadingText className="justify-start px-3 pb-3">Szukam</LoadingText>
               )}
               <ul
                 className={cn(
@@ -214,30 +216,68 @@ export function EntryList() {
               </ul>
             </>
           )
-        ) : entries.length === 0 ? (
-          syncing ? (
-            <LoadingText className="px-3 py-12">Wczytuję wpisy</LoadingText>
-          ) : (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Nie masz jeszcze żadnych wpisów.
-            </p>
-          )
-        ) : filtered.length === 0 ? (
-          <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-            Brak wpisów pasujących do „{trimmed}”.
-          </p>
         ) : (
-          <ul className="space-y-1">
-            {filtered.map((entry) => (
-              <EntryListItem
-                key={entry.id}
-                entry={entry}
-                active={entry.id === activeId}
-              />
-            ))}
-          </ul>
+          <>
+            {showTodayRow && <TodayRow active={pathname === "/entries"} />}
+            {entries.length === 0 ? (
+              syncing ? (
+                <LoadingText className="justify-start px-3 py-4">Wczytuję wpisy</LoadingText>
+              ) : (
+                <ListNote>Tu pojawią się Twoje wpisy.</ListNote>
+              )
+            ) : filtered.length === 0 ? (
+              <ListNote>Brak wpisów pasujących do „{trimmed}”.</ListNote>
+            ) : (
+              groups.map((group) => (
+                <section key={`${group.key}-${group.entries[0].id}`} aria-label={formatMonthHeading(group.firstCreatedAt)}>
+                  <h2 className="sticky top-0 z-10 bg-background px-3 pt-4 pb-2 text-caption font-semibold text-subtle-foreground">
+                    {formatMonthHeading(group.firstCreatedAt)}
+                  </h2>
+                  <ul className="space-y-1">
+                    {group.entries.map((entry) => (
+                      <EntryListItem
+                        key={entry.id}
+                        entry={entry}
+                        active={entry.id === activeId}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
+          </>
         )}
       </CustomScroll>
     </div>
+  );
+}
+
+function ListNote({ children }: { children: React.ReactNode }) {
+  return <p className="px-3 py-4 text-ui text-muted-foreground">{children}</p>;
+}
+
+/** Dzisiejszy dzień bez wpisu — wiersz-zaproszenie na górze listy. */
+function TodayRow({ active }: { active: boolean }) {
+  const now = new Date().toISOString();
+  return (
+    <Link
+      href="/entries"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "mt-1 grid grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 rounded-md border border-dashed border-input px-3 py-3 transition-colors",
+        active ? "bg-accent" : "hover:bg-accent"
+      )}
+    >
+      <span className="flex flex-col items-start">
+        <span className="font-mono text-title font-semibold tabular-nums">
+          {formatDayNumber(now)}
+        </span>
+        <span className="text-caption font-semibold text-foreground">dziś</span>
+      </span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-ui font-semibold">Jeszcze bez wpisu</span>
+        <span className="text-ui text-muted-foreground">Jak minął dzień?</span>
+      </span>
+    </Link>
   );
 }

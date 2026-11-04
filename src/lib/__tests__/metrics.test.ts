@@ -5,8 +5,31 @@ import {
   METRIC_BY_KEY,
   averageMetric,
   metricLevelLabel,
+  needsAttention,
 } from "@/lib/metrics";
 import type { Entry, MetricKey, Scale } from "@/lib/types";
+
+describe("needsAttention", () => {
+  it("zwykła metryka wymaga uwagi na dole skali", () => {
+    expect(needsAttention("sleep", 1)).toBe(true);
+    expect(needsAttention("sleep", 2)).toBe(true);
+    expect(needsAttention("sleep", 3)).toBe(false);
+    expect(needsAttention("mood", 5)).toBe(false);
+  });
+
+  it("stres (odwrócony) wymaga uwagi na górze skali", () => {
+    expect(needsAttention("stress", 4)).toBe(true);
+    expect(needsAttention("stress", 5)).toBe(true);
+    expect(needsAttention("stress", 2)).toBe(false);
+  });
+
+  it("każda metryka ma krótką nazwę do pulsu dnia", () => {
+    for (const metric of METRICS) {
+      expect(metric.short.length).toBeGreaterThan(0);
+      expect(metric.short.length).toBeLessThanOrEqual(8);
+    }
+  });
+});
 
 function entry(partial: Partial<Entry>): Entry {
   return {

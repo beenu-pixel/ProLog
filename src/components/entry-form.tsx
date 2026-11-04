@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useProgressRouter } from "@/lib/nav-progress";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ interface EntryFormProps {
 }
 
 export function EntryForm({ entry }: EntryFormProps) {
-  const router = useRouter();
+  const router = useProgressRouter();
   const isEdit = Boolean(entry);
 
   const [title, setTitle] = useState(entry?.title ?? "");
